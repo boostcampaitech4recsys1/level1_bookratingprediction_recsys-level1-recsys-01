@@ -5,6 +5,15 @@
 # gitignore template for Jupyter Notebooks
 # website: http://jupyter.org/
 
+# csv file 
+**/*.csv
+
+# pt file
+**/*.pt
+
+# data folder except
+code/data
+
 # backup file 
 **/*.bak
 
