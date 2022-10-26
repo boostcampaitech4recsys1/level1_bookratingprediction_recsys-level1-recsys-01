@@ -5,6 +5,11 @@
 # gitignore template for Jupyter Notebooks
 # website: http://jupyter.org/
 
+# macOS + Windows
+.DS_Store
+._*
+Thumbs.db
+
 # csv file 
 **/*.csv
 
