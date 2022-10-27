@@ -10,5 +10,6 @@ from .models.context_models import FactorizationMachineModel, FieldAwareFactoriz
 from .models.dl_models import NeuralCollaborativeFiltering, WideAndDeepModel, DeepCrossNetworkModel
 from .models.image_models import CNN_FM
 from .models.text_models import DeepCoNN
+from .models.rule_base_models import RuleBaseModel
 
 from .ensembles.ensembles import Ensemble
