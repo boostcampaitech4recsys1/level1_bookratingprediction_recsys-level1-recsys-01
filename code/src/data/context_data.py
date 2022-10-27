@@ -45,6 +45,9 @@ def process_context_data(users, books, ratings1, ratings2, b_preprocess_category
 
     ratings = pd.concat([ratings1, ratings2]).reset_index(drop=True)
 
+    # gu book_author 전처리
+    books['book_author'] = books['book_author'].str.replace(r'[^0-9a-zA-Z:,]', '')
+
     # 인덱싱 처리된 데이터 조인
     context_df = ratings.merge(users, on='user_id', how='left').merge(books[['isbn', 'category', 'publisher', 'language', 'book_author', 'year_of_publication']], on='isbn', how='left')
     train_df = ratings1.merge(users, on='user_id', how='left').merge(books[['isbn', 'category', 'publisher', 'language', 'book_author', 'year_of_publication']], on='isbn', how='left')
@@ -69,6 +72,19 @@ def process_context_data(users, books, ratings1, ratings2, b_preprocess_category
     train_df['age'] = train_df['age'].apply(age_map)
     test_df['age'] = test_df['age'].fillna(int(test_df['age'].mean()))
     test_df['age'] = test_df['age'].apply(age_map)
+
+    # gu book_author 변수 추가
+    # 1) 작가별 출판 책 수 추가
+    author_cnt = books.groupby('book_author')[['isbn']].agg('count').sort_values(by='isbn', ascending=False).rename(columns={'isbn': 'author_book_cnt'}).reset_index()
+    train_df = train_df.merge(author_cnt, on='book_author', how='left')
+    test_df = test_df.merge(author_cnt, on='book_author', how='left')
+    # 2) 작가별 단골 추가
+    common = train_df.groupby(['book_author', 'user_id'])[['rating']].count()
+    author_common = common[common['rating']>2].groupby('book_author').count().sort_values('rating', ascending=False).rename(columns={'rating': 'author_common_cnt'}).reset_index()
+    train_df = train_df.merge(author_common, on='book_author', how='left')
+    train_df['author_common_cnt'].fillna(0, inplace=True)
+    test_df = test_df.merge(author_common, on='book_author', how='left')
+    test_df['author_common_cnt'].fillna(0, inplace=True)   
 
     publisher2idx = {v:k for k,v in enumerate(context_df['publisher'].unique())}
     language2idx = {v:k for k,v in enumerate(context_df['language'].unique())}
@@ -139,7 +155,7 @@ def context_data_load(args):
     idx, context_train, context_test = process_context_data(users, books, train, test, True)
     field_dims = np.array([len(user2idx), len(isbn2idx),
                             6, len(idx['loc_city2idx']), len(idx['loc_state2idx']), len(idx['loc_country2idx']),
-                            len(idx['category2idx']), len(idx['publisher2idx']), len(idx['language2idx']), len(idx['author2idx']), 10 ], dtype=np.uint32)
+                            len(idx['category2idx']), len(idx['publisher2idx']), len(idx['language2idx']), len(idx['author2idx']), 10, 1, 1], dtype=np.uint32)
 
     data = {
             'train':context_train,
