@@ -35,6 +35,7 @@ class FactorizationMachineModel:
 
     def train(self):
       # model: type, optimizer: torch.optim, train_dataloader: DataLoader, criterion: torch.nn, device: str, log_interval: int=100
+        avg_rmse = 0 
         for epoch in range(self.epochs):
             self.model.train()
             total_loss = 0
@@ -54,8 +55,9 @@ class FactorizationMachineModel:
                     total_loss = 0
 
             rmse_score = self.predict_train()
+            avg_rmse += rmse_score
             print('epoch:', epoch, 'validation: rmse:', rmse_score)
-
+        print('whole epoch: ', self.epochs, 'avg_rmese : ', round(avg_rmse/self.epochs,3))
 
 
     def predict_train(self):
