@@ -64,6 +64,6 @@ def preprocess_category( books ):
     books['category_rank'] = books.category_high.map({'fiction' : 1, 'juvenile fiction' : 1, 'biography' : 2, 'history' : 3,'sociology': 4,
                                       'bible' : 5, 'psychology' : 6, 'nonfiction' : 7, 'comic' : 8, 'art' : 9})
     # 나머지는 10으로 채워준다. 
-    books['category_rank'].fillna(10.0)
+    books['category_rank'].fillna(1.0)
     books.drop(columns=['category','category_high'],inplace=True)
     return books

@@ -11,21 +11,25 @@ sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 print(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 
 from .preprocessing import preprocess_category
+from sklearn.preprocessing import OrdinalEncoder
+
 
 def age_map(x: int) -> int:
     x = int(x)
-    if x < 20:
+    if x < 10:
         return 1
-    elif x >= 20 and x < 30:
+    elif x >= 10 and x < 20:
         return 2
-    elif x >= 30 and x < 40:
+    elif x >= 20 and x < 30:
         return 3
-    elif x >= 40 and x < 50:
+    elif x >= 30 and x < 40:
         return 4
-    elif x >= 50 and x < 60:
+    elif x >= 40 and x < 50:
         return 5
-    else:
+    elif x >= 50 and x < 60:
         return 6
+    else:
+        return 7
 
 def publish_year_map(x):
     try:
@@ -45,12 +49,29 @@ def country_map(x):
     else :
         return x
 
-def process_context_data(users, books, ratings1, ratings2, b_preprocess_category):
-    users['location_city'] = users['location'].apply(lambda x: x.split(',')[0])
-    users['location_state'] = users['location'].apply(lambda x: x.split(',')[1])
+def process_boosting_data(users, books, ratings1, ratings2,b_preprocess_category):
     users['location_country'] = users['location'].apply(lambda x: x.split(',')[2])
-    users['location_country'] = users['location'].apply(lambda x: x.split(',')[2])
+    users['location_country'] = users['location_country'].apply(country_map) 
     users = users.drop(['location'], axis=1)
+
+    publisher_dict=(books['publisher'].value_counts()).to_dict()
+    publisher_count_df= pd.DataFrame(list(publisher_dict.items()),columns = ['publisher','count'])
+
+    publisher_count_df = publisher_count_df.sort_values(by=['count'], ascending = False)
+    modify_list = publisher_count_df[publisher_count_df['count']>1].publisher.values
+
+    # Apply ordinal encoding on language_code to convert it into numerical column
+    enc = OrdinalEncoder()
+    enc.fit(books[['language']])
+    books[['language']] = enc.fit_transform(books[['language']]) 
+
+    for publisher in modify_list:
+        try:
+            number = books[books['publisher']==publisher]['isbn'].apply(lambda x: x[:4]).value_counts().index[0]
+            right_publisher = books[books['isbn'].apply(lambda x: x[:4])==number]['publisher'].value_counts().index[0]
+            books.loc[books[books['isbn'].apply(lambda x: x[:4])==number].index,'publisher'] = right_publisher
+        except: 
+            pass
 
     ratings = pd.concat([ratings1, ratings2]).reset_index(drop=True)
 
@@ -63,15 +84,9 @@ def process_context_data(users, books, ratings1, ratings2, b_preprocess_category
     # train_df = train_df[~(train_df['category'].isna() & train_df['language'].isna())]
 
     # 인덱싱 처리
-    loc_city2idx = {v:k for k,v in enumerate(context_df['location_city'].unique())}
-    loc_state2idx = {v:k for k,v in enumerate(context_df['location_state'].unique())}
     loc_country2idx = {v:k for k,v in enumerate(context_df['location_country'].unique())}
 
-    train_df['location_city'] = train_df['location_city'].map(loc_city2idx)
-    train_df['location_state'] = train_df['location_state'].map(loc_state2idx)
     train_df['location_country'] = train_df['location_country'].map(loc_country2idx)
-    test_df['location_city'] = test_df['location_city'].map(loc_city2idx)
-    test_df['location_state'] = test_df['location_state'].map(loc_state2idx)
     test_df['location_country'] = test_df['location_country'].map(loc_country2idx)
 
     train_df['age'] = train_df['age'].fillna(int(train_df['age'].mean()))
@@ -85,7 +100,6 @@ def process_context_data(users, books, ratings1, ratings2, b_preprocess_category
 
     category2idx = {v:k for k,v in enumerate(context_df['category'].unique())}
 
-    # book 파트 인덱싱
     if( False == b_preprocess_category ):
         train_df['category'] = train_df['category'].map(category2idx)
         test_df['category'] = test_df['category'].map(category2idx)
@@ -94,11 +108,9 @@ def process_context_data(users, books, ratings1, ratings2, b_preprocess_category
         test_df = preprocess_category(test_df)
 
     train_df['publisher'] = train_df['publisher'].map(publisher2idx)
-    train_df['language'] = train_df['language'].map(language2idx)
     train_df['book_author'] = train_df['book_author'].map(author2idx)
 
     test_df['publisher'] = test_df['publisher'].map(publisher2idx)
-    test_df['language'] = test_df['language'].map(language2idx)
     test_df['book_author'] = test_df['book_author'].map(author2idx)
 
     # year of publication 추가
@@ -106,18 +118,14 @@ def process_context_data(users, books, ratings1, ratings2, b_preprocess_category
     test_df['year_of_publication'] = test_df['year_of_publication'].apply(publish_year_map)
 
     idx = {
-        "loc_city2idx":loc_city2idx,
-        "loc_state2idx":loc_state2idx,
         "loc_country2idx":loc_country2idx,
-        "category2idx":category2idx,
         "publisher2idx":publisher2idx,
-        "language2idx":language2idx,
         "author2idx":author2idx,
     }
 
     return idx, train_df, test_df
 
-def context_data_load(args):
+def boosting_data_load(args):
 
     ######################## DATA LOAD
     users = pd.read_csv(args.DATA_PATH + 'users.csv')
@@ -145,15 +153,11 @@ def context_data_load(args):
     test['isbn'] = test['isbn'].map(isbn2idx)
     books['isbn'] = books['isbn'].map(isbn2idx)
 
-    idx, context_train, context_test = process_context_data(users, books, train, test, True)
-    field_dims = np.array([len(user2idx), len(isbn2idx),
-                            6, len(idx['loc_city2idx']), len(idx['loc_state2idx']), len(idx['loc_country2idx']),
-                            len(idx['category2idx']), len(idx['publisher2idx']), len(idx['language2idx']), len(idx['author2idx']), 10 ], dtype=np.uint32)
+    idx, context_train, context_test = process_boosting_data(users, books, train, test, True)
 
     data = {
             'train':context_train,
             'test':context_test.drop(['rating'], axis=1),
-            'field_dims':field_dims,
             'users':users,
             'books':books,
             'sub':sub,
@@ -167,7 +171,7 @@ def context_data_load(args):
     return data
 
 
-def context_data_split(args, data):
+def boosting_data_split(args, data):
     X_train, X_valid, y_train, y_valid = train_test_split(
                                                         data['train'].drop(['rating'], axis=1),
                                                         data['train']['rating'],
@@ -178,7 +182,7 @@ def context_data_split(args, data):
     data['X_train'], data['X_valid'], data['y_train'], data['y_valid'] = X_train, X_valid, y_train, y_valid
     return data
 
-def context_data_loader(args, data):
+def boosting_data_loader(args, data):
     train_dataset = TensorDataset(torch.LongTensor(data['X_train'].values), torch.LongTensor(data['y_train'].values))
     valid_dataset = TensorDataset(torch.LongTensor(data['X_valid'].values), torch.LongTensor(data['y_valid'].values))
     test_dataset = TensorDataset(torch.LongTensor(data['test'].values))
