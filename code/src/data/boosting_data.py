@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split,StratifiedKFold
 import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader, Dataset
@@ -50,9 +50,14 @@ def country_map(x):
         return x
 
 def process_boosting_data(users, books, ratings1, ratings2,b_preprocess_category):
+    tmp_idx = users[users['age'] > 85].index
+    users.drop(tmp_idx,inplace = True)
+
     users['location_country'] = users['location'].apply(lambda x: x.split(',')[2])
     users['location_country'] = users['location_country'].apply(country_map) 
     users = users.drop(['location'], axis=1)
+
+    books['language'].fillna('en',inplace=True)
 
     publisher_dict=(books['publisher'].value_counts()).to_dict()
     publisher_count_df= pd.DataFrame(list(publisher_dict.items()),columns = ['publisher','count'])
@@ -65,6 +70,9 @@ def process_boosting_data(users, books, ratings1, ratings2,b_preprocess_category
     enc.fit(books[['language']])
     books[['language']] = enc.fit_transform(books[['language']]) 
 
+    author_dict = books.groupby('book_author').count()['isbn'].sort_values()
+    books['book_author'] =books['book_author'].map(author_dict)
+
     for publisher in modify_list:
         try:
             number = books[books['publisher']==publisher]['isbn'].apply(lambda x: x[:4]).value_counts().index[0]
@@ -72,6 +80,9 @@ def process_boosting_data(users, books, ratings1, ratings2,b_preprocess_category
             books.loc[books[books['isbn'].apply(lambda x: x[:4])==number].index,'publisher'] = right_publisher
         except: 
             pass
+
+    publish_dict = books.groupby('publisher').count()['isbn'].sort_values()
+    books['publisher'] =books['publisher'].map(publish_dict)
 
     ratings = pd.concat([ratings1, ratings2]).reset_index(drop=True)
 
@@ -96,7 +107,7 @@ def process_boosting_data(users, books, ratings1, ratings2,b_preprocess_category
 
     publisher2idx = {v:k for k,v in enumerate(context_df['publisher'].unique())}
     language2idx = {v:k for k,v in enumerate(context_df['language'].unique())}
-    author2idx = {v:k for k,v in enumerate(context_df['book_author'].unique())}
+    # author2idx = {v:k for k,v in enumerate(context_df['book_author'].unique())}
 
     category2idx = {v:k for k,v in enumerate(context_df['category'].unique())}
 
@@ -107,11 +118,11 @@ def process_boosting_data(users, books, ratings1, ratings2,b_preprocess_category
         train_df = preprocess_category(train_df)
         test_df = preprocess_category(test_df)
 
-    train_df['publisher'] = train_df['publisher'].map(publisher2idx)
-    train_df['book_author'] = train_df['book_author'].map(author2idx)
+    # train_df['publisher'] = train_df['publisher'].map(publisher2idx)
+    # train_df['book_author'] = train_df['book_author'].map(author2idx)
 
-    test_df['publisher'] = test_df['publisher'].map(publisher2idx)
-    test_df['book_author'] = test_df['book_author'].map(author2idx)
+    # test_df['publisher'] = test_df['publisher'].map(publisher2idx)
+    # test_df['book_author'] = test_df['book_author'].map(author2idx)
 
     # year of publication 추가
     train_df['year_of_publication'] = train_df['year_of_publication'].apply(publish_year_map)
@@ -119,8 +130,8 @@ def process_boosting_data(users, books, ratings1, ratings2,b_preprocess_category
 
     idx = {
         "loc_country2idx":loc_country2idx,
-        "publisher2idx":publisher2idx,
-        "author2idx":author2idx,
+        # "publisher2idx":publisher2idx,
+        # "author2idx":author2idx,
     }
 
     return idx, train_df, test_df
@@ -172,15 +183,16 @@ def boosting_data_load(args):
 
 
 def boosting_data_split(args, data):
-    X_train, X_valid, y_train, y_valid = train_test_split(
-                                                        data['train'].drop(['rating'], axis=1),
-                                                        data['train']['rating'],
-                                                        test_size=args.TEST_SIZE,
-                                                        random_state=args.SEED,
-                                                        shuffle=True
-                                                        )
-    data['X_train'], data['X_valid'], data['y_train'], data['y_valid'] = X_train, X_valid, y_train, y_valid
+    skf = StratifiedKFold(n_splits=8, shuffle=True, random_state=42)
+    folds = []
+
+    for train_idx, valid_idx in skf.split(data['train'].drop(['rating'], axis=1), data['train']['rating']):
+        folds.append((train_idx,valid_idx))
+    
+    data['folds'] = folds 
+
     return data
+
 
 def boosting_data_loader(args, data):
     train_dataset = TensorDataset(torch.LongTensor(data['X_train'].values), torch.LongTensor(data['y_train'].values))
