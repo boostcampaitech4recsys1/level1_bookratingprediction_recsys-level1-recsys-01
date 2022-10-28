@@ -11,6 +11,7 @@ sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 print(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 
 from .preprocessing import preprocess_category
+from sklearn.preprocessing import OrdinalEncoder
 
 def age_map(x: int) -> int:
     x = int(x)
@@ -35,40 +36,85 @@ def publish_year_map(x):
         else:
             return x // 10 - 190  # 1900: 0, 1990: 9, 2000: 10
     except:
-        return x 
+        return x
+
+def country_map(x):
+    if x in ['unitedstatesofamerica','losestadosunidosdenorteamerica','us']:
+        return 'usa'
+    elif x in ['england','uk']:
+        return 'unitedkingdom'
+    else :
+        return x
 
 def process_context_data(users, books, ratings1, ratings2, b_preprocess_category):
-    users['location_city'] = users['location'].apply(lambda x: x.split(',')[0])
-    users['location_state'] = users['location'].apply(lambda x: x.split(',')[1])
+    # ===================== 1. users preprocessing =====================
+    # ===================== 1-1. location
+    #users['location_city'] = users['location'].apply(lambda x: x.split(',')[0])
+    #users['location_state'] = users['location'].apply(lambda x: x.split(',')[1])
     users['location_country'] = users['location'].apply(lambda x: x.split(',')[2])
+    users['location_country'] = users['location_country'].apply(country_map) 
     users = users.drop(['location'], axis=1)
 
-    ratings = pd.concat([ratings1, ratings2]).reset_index(drop=True)
+    # gu: location_country 결측치 처리
+    users['location_country'] = users['location_country'].fillna('usa')
 
-    # gu book_author 전처리
+
+    # ===================== 2. books preprocessing =====================
+    # ===================== 2-1. publisher
+    publisher_dict=(books['publisher'].value_counts()).to_dict()
+    publisher_count_df= pd.DataFrame(list(publisher_dict.items()),columns = ['publisher','count'])
+
+    publisher_count_df = publisher_count_df.sort_values(by=['count'], ascending = False)
+    modify_list = publisher_count_df[publisher_count_df['count']>1].publisher.values
+
+    for publisher in modify_list:
+        try:
+            number = books[books['publisher']==publisher]['isbn'].apply(lambda x: x[:4]).value_counts().index[0]
+            right_publisher = books[books['isbn'].apply(lambda x: x[:4])==number]['publisher'].value_counts().index[0]
+            books.loc[books[books['isbn'].apply(lambda x: x[:4])==number].index,'publisher'] = right_publisher
+        except: 
+            pass
+
+    # gu: publisher 결측치 처리
+    books['publisher'] = books['publisher'].fillna('others')
+
+
+    # ===================== 2-2. language
+    # # Apply ordinal encoding on language_code to convert it into numerical column
+    # enc = OrdinalEncoder()
+    # enc.fit(books[['language']])
+    # books[['language']] = enc.fit_transform(books[['language']])
+
+    # # hhj category language 결측치 제거 
+    # train_df = train_df[~(train_df['category'].isna() & train_df['language'].isna())]
+
+    # gu: language 결측치처리
+    books['language'] = books['language'].fillna('en')
+
+    # ===================== 2-3. author
+    # gu: book_author 전처리
     books['book_author'] = books['book_author'].str.replace(r'[^0-9a-zA-Z:,]', '')
 
-    # gu language 결측치처리
-    books['language'] = books['language'].fillna('en')
+
+    # ===================== 3. merge and indexing =====================
+    # ===================== 3-1. merge
+    ratings = pd.concat([ratings1, ratings2]).reset_index(drop=True)
 
     # 인덱싱 처리된 데이터 조인
     context_df = ratings.merge(users, on='user_id', how='left').merge(books[['isbn', 'category', 'publisher', 'language', 'book_author', 'year_of_publication']], on='isbn', how='left')
     train_df = ratings1.merge(users, on='user_id', how='left').merge(books[['isbn', 'category', 'publisher', 'language', 'book_author', 'year_of_publication']], on='isbn', how='left')
     test_df = ratings2.merge(users, on='user_id', how='left').merge(books[['isbn', 'category', 'publisher', 'language', 'book_author', 'year_of_publication']], on='isbn', how='left')
 
-    # hhj category language 결측치 제거 
-    train_df = train_df[~(train_df['category'].isna() & train_df['language'].isna())]
-
-    # 인덱싱 처리
-    loc_city2idx = {v:k for k,v in enumerate(context_df['location_city'].unique())}
-    loc_state2idx = {v:k for k,v in enumerate(context_df['location_state'].unique())}
+    # ===================== 3-2. users columns 인덱싱처리
+    #loc_city2idx = {v:k for k,v in enumerate(context_df['location_city'].unique())}
+    #loc_state2idx = {v:k for k,v in enumerate(context_df['location_state'].unique())}
     loc_country2idx = {v:k for k,v in enumerate(context_df['location_country'].unique())}
 
-    train_df['location_city'] = train_df['location_city'].map(loc_city2idx)
-    train_df['location_state'] = train_df['location_state'].map(loc_state2idx)
+    #train_df['location_city'] = train_df['location_city'].map(loc_city2idx)
+    #train_df['location_state'] = train_df['location_state'].map(loc_state2idx)
     train_df['location_country'] = train_df['location_country'].map(loc_country2idx)
-    test_df['location_city'] = test_df['location_city'].map(loc_city2idx)
-    test_df['location_state'] = test_df['location_state'].map(loc_state2idx)
+    #test_df['location_city'] = test_df['location_city'].map(loc_city2idx)
+    #test_df['location_state'] = test_df['location_state'].map(loc_state2idx)
     test_df['location_country'] = test_df['location_country'].map(loc_country2idx)
 
     train_df['age'] = train_df['age'].fillna(int(train_df['age'].mean()))
@@ -76,6 +122,7 @@ def process_context_data(users, books, ratings1, ratings2, b_preprocess_category
     test_df['age'] = test_df['age'].fillna(int(test_df['age'].mean()))
     test_df['age'] = test_df['age'].apply(age_map)
 
+    # ===================== 3-3. book author preprocessing after merge
     # gu book_author 변수 추가
     # 1) 작가별 출판 책 수 추가
     author_cnt = books.groupby('book_author')[['isbn']].agg('count').sort_values(by='isbn', ascending=False).rename(columns={'isbn': 'author_book_cnt'}).reset_index()
@@ -89,13 +136,12 @@ def process_context_data(users, books, ratings1, ratings2, b_preprocess_category
     test_df = test_df.merge(author_common, on='book_author', how='left')
     test_df['author_common_cnt'].fillna(0, inplace=True) 
 
+    # ===================== 3-4. books columns 인덱싱처리
     publisher2idx = {v:k for k,v in enumerate(context_df['publisher'].unique())}
     language2idx = {v:k for k,v in enumerate(context_df['language'].unique())}
     author2idx = {v:k for k,v in enumerate(context_df['book_author'].unique())}
-
     category2idx = {v:k for k,v in enumerate(context_df['category'].unique())}
 
-    # book 파트 인덱싱
     if( False == b_preprocess_category ):
         train_df['category'] = train_df['category'].map(category2idx)
         test_df['category'] = test_df['category'].map(category2idx)
@@ -111,13 +157,13 @@ def process_context_data(users, books, ratings1, ratings2, b_preprocess_category
     test_df['language'] = test_df['language'].map(language2idx)
     test_df['book_author'] = test_df['book_author'].map(author2idx)
 
-    # year of publication 추가
+    # gu: year of publication 추가
     train_df['year_of_publication'] = train_df['year_of_publication'].apply(publish_year_map)
     test_df['year_of_publication'] = test_df['year_of_publication'].apply(publish_year_map)
 
     idx = {
-        "loc_city2idx":loc_city2idx,
-        "loc_state2idx":loc_state2idx,
+        #"loc_city2idx":loc_city2idx,
+        #"loc_state2idx":loc_state2idx,
         "loc_country2idx":loc_country2idx,
         "category2idx":category2idx,
         "publisher2idx":publisher2idx,
@@ -156,8 +202,11 @@ def context_data_load(args):
     books['isbn'] = books['isbn'].map(isbn2idx)
 
     idx, context_train, context_test = process_context_data(users, books, train, test, True)
+    # field_dims = np.array([len(user2idx), len(isbn2idx),
+    #                         6, 10, 1, 1, len(idx['loc_city2idx']), len(idx['loc_state2idx']), len(idx['loc_country2idx']),
+    #                         len(idx['category2idx']), len(idx['publisher2idx']), len(idx['language2idx']), len(idx['author2idx'])], dtype=np.uint32)
     field_dims = np.array([len(user2idx), len(isbn2idx),
-                            6, 10, 1, 1, len(idx['loc_city2idx']), len(idx['loc_state2idx']), len(idx['loc_country2idx']),
+                            6, 10, 1, 1, len(idx['loc_country2idx']),
                             len(idx['category2idx']), len(idx['publisher2idx']), len(idx['language2idx']), len(idx['author2idx'])], dtype=np.uint32)
 
     data = {
