@@ -14,18 +14,20 @@ from .preprocessing import preprocess_category
 
 def age_map(x: int) -> int:
     x = int(x)
-    if x < 20:
+    if x< 10 :
         return 1
-    elif x >= 20 and x < 30:
+    elif x >= 10 and x < 20:
         return 2
-    elif x >= 30 and x < 40:
+    elif x >= 20 and x < 30:
         return 3
-    elif x >= 40 and x < 50:
+    elif x >= 30 and x < 40:
         return 4
-    elif x >= 50 and x < 60:
+    elif x >= 40 and x < 50:
         return 5
-    else:
+    elif x >= 50 and x < 60:
         return 6
+    else:
+        return 7
 
 def publish_year_map(x):
     try:
@@ -147,7 +149,7 @@ def context_data_load(args):
 
     idx, context_train, context_test = process_context_data(users, books, train, test, True)
     field_dims = np.array([len(user2idx), len(isbn2idx),
-                            6, len(idx['loc_city2idx']), len(idx['loc_state2idx']), len(idx['loc_country2idx']),
+                            7, len(idx['loc_city2idx']), len(idx['loc_state2idx']), len(idx['loc_country2idx']),
                             len(idx['category2idx']), len(idx['publisher2idx']), len(idx['language2idx']), len(idx['author2idx']), 10 ], dtype=np.uint32)
 
     data = {
