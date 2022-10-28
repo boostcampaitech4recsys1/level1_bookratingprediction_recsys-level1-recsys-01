@@ -48,6 +48,9 @@ def process_context_data(users, books, ratings1, ratings2, b_preprocess_category
     # gu book_author 전처리
     books['book_author'] = books['book_author'].str.replace(r'[^0-9a-zA-Z:,]', '')
 
+    # gu language 결측치처리
+    books['language'] = books['language'].fillna('en')
+
     # 인덱싱 처리된 데이터 조인
     context_df = ratings.merge(users, on='user_id', how='left').merge(books[['isbn', 'category', 'publisher', 'language', 'book_author', 'year_of_publication']], on='isbn', how='left')
     train_df = ratings1.merge(users, on='user_id', how='left').merge(books[['isbn', 'category', 'publisher', 'language', 'book_author', 'year_of_publication']], on='isbn', how='left')
@@ -84,7 +87,7 @@ def process_context_data(users, books, ratings1, ratings2, b_preprocess_category
     train_df = train_df.merge(author_common, on='book_author', how='left')
     train_df['author_common_cnt'].fillna(0, inplace=True)
     test_df = test_df.merge(author_common, on='book_author', how='left')
-    test_df['author_common_cnt'].fillna(0, inplace=True)   
+    test_df['author_common_cnt'].fillna(0, inplace=True) 
 
     publisher2idx = {v:k for k,v in enumerate(context_df['publisher'].unique())}
     language2idx = {v:k for k,v in enumerate(context_df['language'].unique())}
@@ -154,8 +157,8 @@ def context_data_load(args):
 
     idx, context_train, context_test = process_context_data(users, books, train, test, True)
     field_dims = np.array([len(user2idx), len(isbn2idx),
-                            6, len(idx['loc_city2idx']), len(idx['loc_state2idx']), len(idx['loc_country2idx']),
-                            len(idx['category2idx']), len(idx['publisher2idx']), len(idx['language2idx']), len(idx['author2idx']), 10, 1, 1], dtype=np.uint32)
+                            6, 10, 1, 1, len(idx['loc_city2idx']), len(idx['loc_state2idx']), len(idx['loc_country2idx']),
+                            len(idx['category2idx']), len(idx['publisher2idx']), len(idx['language2idx']), len(idx['author2idx'])], dtype=np.uint32)
 
     data = {
             'train':context_train,
