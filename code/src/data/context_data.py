@@ -95,6 +95,10 @@ def process_context_data(users, books, ratings1, ratings2, b_preprocess_category
     # gu: book_author 전처리
     books['book_author'] = books['book_author'].str.replace(r'[^0-9a-zA-Z:,]', '')
 
+    # ===================== 2-4. category
+    # gu: category 전처리
+    books['category'] = books['category'].fillna('fiction')
+
 
     # ===================== 3. merge and indexing =====================
     # ===================== 3-1. merge
@@ -206,7 +210,7 @@ def context_data_load(args):
     #                         6, 10, 1, 1, len(idx['loc_city2idx']), len(idx['loc_state2idx']), len(idx['loc_country2idx']),
     #                         len(idx['category2idx']), len(idx['publisher2idx']), len(idx['language2idx']), len(idx['author2idx'])], dtype=np.uint32)
     field_dims = np.array([len(user2idx), len(isbn2idx),
-                            6, 10, 1, 1, len(idx['loc_country2idx']),
+                            6, 10, len( context_train['author_common_cnt']), len(context_train['author_book_cnt']), len(idx['loc_country2idx']),
                             len(idx['category2idx']), len(idx['publisher2idx']), len(idx['language2idx']), len(idx['author2idx'])], dtype=np.uint32)
 
     data = {
