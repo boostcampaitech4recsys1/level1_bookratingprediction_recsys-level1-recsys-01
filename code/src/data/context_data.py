@@ -56,25 +56,25 @@ def country_map(x):
     else :
         return x
 
-def sep_country(x):
-    if x in ['finland','portugal','germany','austria','italy','france','netherlands','poland','spain','singapore','switzerland','yugoslavia','sweden','slovakia','norway','macedonia','denmark','russia','andorra','czechrepublic','bulgaria','slovenia','luxembourg','iceland','cyprus','albania','ukraine','malta','romania','greece','ireland','belgium','unitedkingdom','argentina','hungary','croatia','lithuania']:
-        return 'Europe'
-    elif x in ['iran','turkey','qatar','kuwait','israel','saudiarabia','unitedarabemirates']:
-        return 'MiddleEast'
-    elif x in ['malaysia','taiwan','singapore','philippines','japan','china','indonesia','nepal','southkorea','pakistan','srilanka','india','turkmenistan','laos','thailand']:
-        return 'Asia'
-    elif x in ['southafrica', 'kenya','mauritius','madagascar','egypt','zambia','zimbabwe','algeria','mozambique','guinea','canaryislands','nigeria']:
-        return 'Africa'
-    elif x in ['newzealand','australia','palau']:
-        return 'Oceania'
-    elif x in ['canada','usa','bermuda','puertorico']:
-        return 'NorthAmerica'
-    elif x in ['brazil', 'costarica', 'mexico', 'peru','dominicanrepublic','guatemala','venezuela','chile','honduras','trinidadandtobago','belize','jamaica','bahamas','caymanislands','saintlucia','barbados']:
-        return 'SouthAmerica'
-    elif x in ['quit','universe','tdzimi','stthomasi','faraway','everywhereandanywhere','ontario','k1c7b1','naontheroad','sthelena']:
-        return 'Remove_Point'
-    else:
-        return x
+# def sep_country(x):
+#     if x in ['finland','portugal','germany','austria','italy','france','netherlands','poland','spain','singapore','switzerland','yugoslavia','sweden','slovakia','norway','macedonia','denmark','russia','andorra','czechrepublic','bulgaria','slovenia','luxembourg','iceland','cyprus','albania','ukraine','malta','romania','greece','ireland','belgium','unitedkingdom','argentina','hungary','croatia','lithuania']:
+#         return 'Europe'
+#     elif x in ['iran','turkey','qatar','kuwait','israel','saudiarabia','unitedarabemirates']:
+#         return 'MiddleEast'
+#     elif x in ['malaysia','taiwan','singapore','philippines','japan','china','indonesia','nepal','southkorea','pakistan','srilanka','india','turkmenistan','laos','thailand']:
+#         return 'Asia'
+#     elif x in ['southafrica', 'kenya','mauritius','madagascar','egypt','zambia','zimbabwe','algeria','mozambique','guinea','canaryislands','nigeria']:
+#         return 'Africa'
+#     elif x in ['newzealand','australia','palau']:
+#         return 'Oceania'
+#     elif x in ['canada','usa','bermuda','puertorico']:
+#         return 'NorthAmerica'
+#     elif x in ['brazil', 'costarica', 'mexico', 'peru','dominicanrepublic','guatemala','venezuela','chile','honduras','trinidadandtobago','belize','jamaica','bahamas','caymanislands','saintlucia','barbados']:
+#         return 'SouthAmerica'
+#     elif x in ['quit','universe','tdzimi','stthomasi','faraway','everywhereandanywhere','ontario','k1c7b1','naontheroad','sthelena']:
+#         return 'Remove_Point'
+#     else:
+#         return x
 
 def process_context_data(users, books, ratings1, ratings2, b_preprocess_category):
     # ===================== 1. users preprocessing =====================
@@ -91,9 +91,9 @@ def process_context_data(users, books, ratings1, ratings2, b_preprocess_category
     users['location_country'] = users['location_country'].fillna('usa')
     users['location_country'] = users['location_country'].apply(country_map)
 
-    # 6대주
+    # 6대주 + 중동
 
-    users['location_country'] = users['location_country'].apply(sep_country)
+    # users['location_country'] = users['location_country'].apply(sep_country)
 
     # 해당 나라의 유저가 5명 이하일 경우 해당 나라 제거
     country_unique = users['location_country'].unique().tolist()
