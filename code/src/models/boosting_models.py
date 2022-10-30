@@ -10,6 +10,8 @@ import torch.optim as optim
 from ._models import rmse, RMSELoss
 
 from catboost import CatBoostRegressor, CatBoostClassifier, Pool
+from xgboost import XGBRegressor, XGBClassifier
+from lightgbm import LGBMRegressor, LGBMClassifier
 
 import optuna 
 from optuna import Trial, visualization
@@ -44,7 +46,8 @@ class CatBoostingModel:
         super().__init__()
 
         self.criterion = RMSELoss()
-        self.model =  CatBoostClassifier( learning_rate = 0.22711164423706456, bagging_temperature= 16.06572911754189, n_estimators= 2879, max_depth= 11, random_strength= 1, colsample_bylevel= 0.8343464926823253, l2_leaf_reg=7.695579834959398e-06, min_child_samples= 8, max_bin= 451, od_type= 'IncToDec')
+        self.model =  CatBoostRegressor( learning_rate = 0.22711164423706456, bagging_temperature= 16.06572911754189, verbose= 200, n_estimators= 2879, max_depth= 11, random_strength= 1, colsample_bylevel= 0.8343464926823253, l2_leaf_reg=7.695579834959398e-06, min_child_samples= 8, max_bin= 451, od_type= 'IncToDec')
+        # self.model =  CatBoostClassifier( learning_rate = 0.22711164423706456, bagging_temperature= 16.06572911754189, n_estimators= 2879, max_depth= 11, random_strength= 1, colsample_bylevel= 0.8343464926823253, l2_leaf_reg=7.695579834959398e-06, min_child_samples= 8, max_bin= 451, od_type= 'IncToDec')
         self.data = data
 
 #         # direction : score 값을 최대 또는 최소로 하는 방향으로 지정 
@@ -63,11 +66,101 @@ class CatBoostingModel:
     def train(self):
         self.model.fit(self.data['X_train'],self.data['y_train'])
         preds = self.model.predict(self.data['X_valid'])
-        print('RMSE : ', rmse(self.data['y_valid'], preds.squeeze(1)))
+        print('RMSE : ', rmse(self.data['y_valid'], preds)) # Regressor
+        # print('RMSE : ', rmse(self.data['y_valid'], preds.squeeze(1))) # Classifier
         #print('epoch:', epoch, 'validation: rmse:', rmse_score)
         return 
 
     def predict(self):
         preds = self.model.predict(self.data['test'])
         print(preds)
-        return preds.squeeze(1)
+        return preds # Regressor
+        # return preds.squeeze(1) # Classifier
+
+
+class XGBModel:
+
+    def __init__(self, args, data):
+        super().__init__()
+
+        self.criterion = RMSELoss()
+        # self.model =  XGBClassifier(n_estimators=2000, learning_rate=0.01, max_depth=5, num_feature=100)
+        self.model =  XGBRegressor(n_estimators=2000, learning_rate=0.01, max_depth=5)
+        self.data = data
+
+#         # direction : score 값을 최대 또는 최소로 하는 방향으로 지정 
+#         study = optuna.create_study(direction='minimize',sampler=TPESampler())
+
+#         # n_trials : 시도 횟수 (미 입력시 Key interrupt가 있을 때까지 무한 반복)
+#         study.optimize(lambda trial : objective(trial, self.data['X_train'], self.data['y_train']), n_trials=50)
+#         print('Best trial: score {},\nparams {}'.format(study.best_trial.value,study.best_trial.params))
+
+#         # 하이퍼파라미터별 중요도를 확인할 수 있는 그래프
+#         optuna.visualization.plot_param_importances(study)
+
+#         # 하이퍼파라미터 최적화 과정을 확인
+#         optuna.visualization.plot_optimization_history(study)
+
+    def train(self):
+        self.model.fit(self.data['X_train'],self.data['y_train'])
+        preds = self.model.predict(self.data['X_valid'])
+        print('RMSE : ', rmse(self.data['y_valid'], preds)) # Regressor
+        # print('RMSE : ', rmse(self.data['y_valid'], preds.squeeze(1))) # Classifier
+        #print('epoch:', epoch, 'validation: rmse:', rmse_score)
+        return 
+
+    def predict(self):
+        preds = self.model.predict(self.data['test'])
+        print(preds)
+        return preds # Regressor
+        # return preds.squeeze(1) # Classifier
+
+
+class LGBMModel:
+
+    def __init__(self, args, data):
+        super().__init__()
+
+        self.criterion = RMSELoss()
+        # self.model =  LGBMClassifier( )
+        self.model =  LGBMRegressor(nthread=4,
+                        n_estimators=1000,
+                        learning_rate=0.02,
+                        num_leaves=34,
+                        colsample_bytree=0.94,
+                        subsample=0.87,
+                        max_depth=8,
+                        reg_alpha=0.04,
+                        reg_lambda=0.07,
+                        min_split_gain=0.02,
+                        min_child_weight=32,
+                        silent=-1,
+                        verbose=-1)
+        self.data = data
+
+#         # direction : score 값을 최대 또는 최소로 하는 방향으로 지정 
+#         study = optuna.create_study(direction='minimize',sampler=TPESampler())
+
+#         # n_trials : 시도 횟수 (미 입력시 Key interrupt가 있을 때까지 무한 반복)
+#         study.optimize(lambda trial : objective(trial, self.data['X_train'], self.data['y_train']), n_trials=50)
+#         print('Best trial: score {},\nparams {}'.format(study.best_trial.value,study.best_trial.params))
+
+#         # 하이퍼파라미터별 중요도를 확인할 수 있는 그래프
+#         optuna.visualization.plot_param_importances(study)
+
+#         # 하이퍼파라미터 최적화 과정을 확인
+#         optuna.visualization.plot_optimization_history(study)
+
+    def train(self):
+        self.model.fit(self.data['X_train'],self.data['y_train'])
+        preds = self.model.predict(self.data['X_valid'])
+        print('RMSE : ', rmse(self.data['y_valid'], preds)) # Regressor
+        # print('RMSE : ', rmse(self.data['y_valid'], preds.squeeze(1))) # Classifier
+        #print('epoch:', epoch, 'validation: rmse:', rmse_score)
+        return 
+
+    def predict(self):
+        preds = self.model.predict(self.data['test'])
+        print(preds)
+        return preds # Regressor
+        # return preds.squeeze(1) # Classifier

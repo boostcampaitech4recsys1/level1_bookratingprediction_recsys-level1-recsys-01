@@ -1,5 +1,6 @@
 import time
 import argparse
+
 import pandas as pd
 
 from src import seed_everything
@@ -15,6 +16,8 @@ from src import NeuralCollaborativeFiltering, WideAndDeepModel, DeepCrossNetwork
 from src import CNN_FM
 from src import DeepCoNN
 from src import CatBoostingModel
+from src import XGBModel
+from src import LGBMModel
 
 
 def main(args):
@@ -33,6 +36,12 @@ def main(args):
         nltk.download('punkt')
         data = text_data_load(args)
     elif args.MODEL == 'CatBoosting':
+        data = boosting_data_load(args)
+        pass
+    elif args.MODEL == 'XGBoost':
+        data = boosting_data_load(args)
+        pass
+    elif args.MODEL == 'LightGBM':
         data = boosting_data_load(args)
         pass
     else:
@@ -56,7 +65,7 @@ def main(args):
         data = text_data_split(args, data)
         data = text_data_loader(args, data)
 
-    elif args.MODEL == 'CatBoosting':
+    elif args.MODEL in ('CatBoosting', 'XGBoost', 'LightGBM'):
         data = boosting_data_split(args, data)
         pass
 
@@ -81,6 +90,10 @@ def main(args):
         model = DeepCoNN(args, data)
     elif args.MODEL=='CatBoosting':
         model = CatBoostingModel(args, data)
+    elif args.MODEL=='XGBoost':
+        model = XGBModel(args, data)
+    elif args.MODEL=='LightGBM':
+        model = LGBMModel(args, data)
     else:
         pass
 
@@ -96,7 +109,7 @@ def main(args):
         predicts  = model.predict(data['test_dataloader'])
     elif args.MODEL=='DeepCoNN':
         predicts  = model.predict(data['test_dataloader'])
-    elif args.MODEL=='CatBoosting':
+    elif args.MODEL in ('CatBoosting', 'XGBoost', 'LightGBM'):
         predicts = model.predict()
     else:
         pass
@@ -104,7 +117,7 @@ def main(args):
     ######################## SAVE PREDICT
     print(f'--------------- SAVE {args.MODEL} PREDICT ---------------')
     submission = pd.read_csv(args.DATA_PATH + 'sample_submission.csv')
-    if args.MODEL in ('FM', 'FFM', 'NCF', 'WDN', 'DCN', 'CNN_FM', 'DeepCoNN','CatBoosting'):
+    if args.MODEL in ('FM', 'FFM', 'NCF', 'WDN', 'DCN', 'CNN_FM', 'DeepCoNN','CatBoosting', 'XGBoost', "LightGBM"):
         submission['rating'] = predicts
     else:
         pass
@@ -125,7 +138,7 @@ if __name__ == "__main__":
 
     ############### BASIC OPTION
     arg('--DATA_PATH', type=str, default='data/', help='Data path를 설정할 수 있습니다.')
-    arg('--MODEL', type=str, choices=['FM', 'FFM', 'NCF', 'WDN', 'DCN', 'CNN_FM', 'DeepCoNN', 'CatBoosting'],
+    arg('--MODEL', type=str, choices=['FM', 'FFM', 'NCF', 'WDN', 'DCN', 'CNN_FM', 'DeepCoNN', 'CatBoosting', 'XGBoost', 'LightGBM'],
                                 help='학습 및 예측할 모델을 선택할 수 있습니다.')
     arg('--DATA_SHUFFLE', type=bool, default=True, help='데이터 셔플 여부를 조정할 수 있습니다.')
     arg('--TEST_SIZE', type=float, default=0.2, help='Train/Valid split 비율을 조정할 수 있습니다.')
