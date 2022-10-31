@@ -1,4 +1,5 @@
 import pandas as pd
+import re
 from . import get_apply_map_series
 
 def age_map(x: int) -> int:
@@ -18,14 +19,13 @@ def age_map(x: int) -> int:
         return 6
     else:
         return 7
-
 def country_map(x):
-
-    if x in ['','na']:
+    # if x in ['','na']:
+    #     return 'usa'
+    # 도시명만 존재할 경우에도 나라가 usa로 바뀜.
+    if x in ['unitedstatesofamerica','losestadosunidosdenorteamerica','us','unitedstate','unitedstaes','unitedstatesofamerica','unitedsates','unitedstates']:
         return 'usa'
-    elif x in ['unitedstatesofamerica','losestadosunidosdenorteamerica','us','unitedstate','unitedstaes','unitedstatesofamerica','unitedsates','unitedstates']:
-        return 'usa'
-    elif x in ['england','uk','unitedkingdom','unitedkindgonm']:
+    elif x in ['uk','unitedkingdom','unitedkindgonm']:
         return 'unitedkingdom'
     elif x in ['deutschland']:
         return 'germany'
@@ -48,23 +48,40 @@ def process_location( target_data : pd.DataFrame, process_level:int )->pd.DataFr
     if 'location' not in target_data.columns:
         raise Exception( '[preprocess_location] location column not in target_data')
 
-    level_map = { 1 : 'country' , 2 : 'city', 3:'state'}
+    level_map = { 1 : 'country' , 2 : 'state', 3:'city'}
     # location 특수 문자 제거
-    target_data['location'].str.replace(r'[^0-9a-zA-Z:,]+', '',regex = True )
     basic_str = 'location_'
+    
+    # u['location_country'] = u['location'].apply(lambda x: x.split(',')[2] if len(x.split(','))==3 else x.split(',')[3] )
+    # u['location_state'] = u['location'].apply(lambda x: x.split(',')[1] if len(x.split(','))==3 else ( x.split(',')[1] if x.split(',')[2]=='' else x.split(',')[2] ))
+    # u['location_city'] = u['location'].apply(lambda x: x.split(',')[0])
     
     if process_level >= 1 : 
         cur_str = basic_str + level_map[1]
-        target_data[cur_str] = target_data['location'].apply(lambda x: x.split(',')[2])
+        # target_data[cur_str] = target_data['location'].apply(lambda x: x.split(',')[2])
+        target_data[cur_str] = target_data['location'].apply(lambda x: x.split(',')[2] if len(x.split(','))==3 else x.split(',')[3] )
         target_data[cur_str] = target_data[cur_str].apply(country_map)
 
     if process_level >= 2 :
         cur_str = basic_str + level_map[2]
-        target_data[cur_str] = target_data['location'].apply(lambda x: x.split(',')[1])
+        # target_data[cur_str] = target_data['location'].apply(lambda x: x.split(',')[1])
+        target_data['location_state'] = target_data['location'].apply(lambda x: x.split(',')[1] if len(x.split(','))==3 else ( x.split(',')[1] if x.split(',')[2]=='' else x.split(',')[2] ))
+        
     
     if process_level >= 3 :
         cur_str = basic_str + level_map[3]
         target_data[cur_str] = target_data['location'].apply(lambda x: x.split(',')[0])
+        
+    target_data['location_country'] = target_data['location_country'].apply(lambda x: re.sub('[^0-9a-zA-Z]','',x).strip())
+    target_data['location_state'] = target_data['location_state'].apply(lambda x: re.sub('[^0-9a-zA-Z]','',x).strip())
+    target_data['location_city'] = target_data['location_city'].apply(lambda x: re.sub('[^0-9a-zA-Z]','',x).strip())
+    
+    country_unique = target_data['location_country'].unique().tolist()
+    for country in country_unique:
+        if target_data[target_data['location_country']==country].shape[0]< 5:
+            target_data.loc[target_data['location_country']==country,"location_country"] = 'Remove_Point'
+    target_data.drop(target_data[target_data['location_country']=='Remove_Point'].index,inplace=True)
+    # target_data.drop(target_data[target_data['location_country']==''].index,inplace=True)
     
     target_data = target_data.drop(['location'], axis=1)
     return target_data

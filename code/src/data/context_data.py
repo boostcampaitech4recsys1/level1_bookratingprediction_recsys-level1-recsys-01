@@ -23,7 +23,7 @@ def process_context_data(users, books, ratings1, ratings2, b_preprocess_category
     # ===================== 1-1. location
     # location 처리 - country, state, city 처리 및 country 이상 데이터 통합 ( us, england 만 처리됨 )
     # gu: location_country 결측치 처리
-    users = process_location( target_data = users, process_level = 1 )
+    users = process_location( target_data = users, process_level = 3 )
     users['location_country'] = users['location_country'].fillna('usa')
 
     # ===================== 1-2. age
@@ -67,15 +67,15 @@ def process_context_data(users, books, ratings1, ratings2, b_preprocess_category
     test_df = ratings2.merge(users, on='user_id', how='left').merge(books[['isbn', 'category', 'publisher', 'language', 'book_author', 'year_of_publication']], on='isbn', how='left')
 
     # ===================== 3-2. users columns 인덱싱처리
-    # loc_city2idx = {v:k for k,v in enumerate(context_df['location_city'].unique())}
-    # loc_state2idx = {v:k for k,v in enumerate(context_df['location_state'].unique())}
+    loc_city2idx = {v:k for k,v in enumerate(context_df['location_city'].unique())}
+    loc_state2idx = {v:k for k,v in enumerate(context_df['location_state'].unique())}
     loc_country2idx = {v:k for k,v in enumerate(context_df['location_country'].unique())}
 
-    # train_df['location_city'] = train_df['location_city'].map(loc_city2idx)
-    # train_df['location_state'] = train_df['location_state'].map(loc_state2idx)
+    train_df['location_city'] = train_df['location_city'].map(loc_city2idx)
+    train_df['location_state'] = train_df['location_state'].map(loc_state2idx)
     train_df['location_country'] = train_df['location_country'].map(loc_country2idx)
-    # test_df['location_city'] = test_df['location_city'].map(loc_city2idx)
-    # test_df['location_state'] = test_df['location_state'].map(loc_state2idx)
+    test_df['location_city'] = test_df['location_city'].map(loc_city2idx)
+    test_df['location_state'] = test_df['location_state'].map(loc_state2idx)
     test_df['location_country'] = test_df['location_country'].map(loc_country2idx)
 
     # ===================== 3-3. book author preprocessing after merge
@@ -113,8 +113,8 @@ def process_context_data(users, books, ratings1, ratings2, b_preprocess_category
     test_df = process_year_of_publication(test_df)
 
     idx = {
-        # "loc_city2idx":loc_city2idx,
-        # "loc_state2idx":loc_state2idx,
+        "loc_city2idx":loc_city2idx,
+        "loc_state2idx":loc_state2idx,
         "loc_country2idx":loc_country2idx,
         "category2idx":category2idx,
         "publisher2idx":publisher2idx,
@@ -157,7 +157,7 @@ def context_data_load(args):
     #                         7, 10, 1, 1, len(idx['loc_city2idx']), len(idx['loc_state2idx']), len(idx['loc_country2idx']),
     #                         len(idx['category2idx']), len(idx['publisher2idx']), len(idx['language2idx']), len(idx['author2idx'])], dtype=np.uint32)
     field_dims = np.array([len(user2idx), len(isbn2idx),
-                            7, 10, len( context_train['author_common_cnt']), len(context_train['author_book_cnt']), len(idx['loc_country2idx']),
+                            7, 10, len( context_train['author_common_cnt']), len(context_train['author_book_cnt']), len(idx['loc_country2idx']),len(idx['loc_state2idx']),len(idx['loc_city2idx']),
                             len(idx['category2idx']), len(idx['publisher2idx']), len(idx['language2idx']), len(idx['author2idx'])], dtype=np.uint32)
 
     data = {
