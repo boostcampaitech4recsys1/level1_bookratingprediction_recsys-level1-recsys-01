@@ -8,14 +8,16 @@ import torch.optim as optim
 
 # from ._models import CatBoosting
 from ._models import rmse, RMSELoss
-
+from sklearn.model_selection import train_test_split
 from catboost import CatBoostRegressor, CatBoostClassifier, Pool
 
 import optuna 
 from optuna import Trial, visualization
 from optuna.samplers import TPESampler
 
-def objective(trial: Trial, X, y, X_eval,y_eval):
+def objective(trial: Trial, X, y):
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2,random_state=42)
+
     param = {}
     param['learning_rate'] = trial.suggest_discrete_uniform("learning_rate", 0.001, 0.3, 0.001)
     param['depth'] = trial.suggest_int('depth', 9, 15)
@@ -29,12 +31,13 @@ def objective(trial: Trial, X, y, X_eval,y_eval):
     param['od_wait'] = 20
     param['random_state'] = 42
     param['logging_level'] = 'Silent'
+    param['bootstrap_type'] = 'Bernoulli'
     # param['use_model_best'] = true
     model = CatBoostRegressor(**param)
-    catboost_model = model.fit(X.copy(), y.copy(), eval_set=[(X_eval.copy(), y_eval.copy())], early_stopping_rounds=35,verbose=100)
+    catboost_model = model.fit(X_train.copy(), y_train.copy(), eval_set=[(X_test.copy(), y_test.copy())], early_stopping_rounds=35,verbose=100)
 
     ## RMSE으로 Loss 계산
-    score = rmse( y,catboost_model.predict(X))
+    score = rmse( y_test,catboost_model.predict(X_test))
     print(score)
 
     return score
@@ -50,12 +53,17 @@ class CatBoostingModel:
         # # direction : score 값을 최대 또는 최소로 하는 방향으로 지정 
         # study = optuna.create_study(direction='minimize',sampler=TPESampler())      
         # # n_trials : 시도 횟수 (미 입력시 Key interrupt가 있을 때까지 무한 반복)
-        # study.optimize(lambda trial : objective(trial, self.data['X_train'], self.data['y_train'],self.data['X_valid'],self.data['y_valid']), n_trials=50)
+        # study.optimize(lambda trial : objective(trial, self.data['train'].drop('rating',axis=1), self.data['train']['rating']), n_trials=50)
         # print('Best trial: score {},\nparams {}'.format(study.best_trial.value,study.best_trial.params))        
-        # # 하이퍼파라미터별 중요도를 확인할 수 있는 그래프
-        # optuna.visualization.plot_param_importances(study)      
-        # # 하이퍼파라미터 최적화 과정을 확인
-        # optuna.visualization.plot_optimization_history(study)
+        
+        # self.best_params = study.best_params
+        # try:
+        #     # 하이퍼파라미터별 중요도를 확인할 수 있는 그래프
+        #     optuna.visualization.plot_param_importances(study)      
+        #     # 하이퍼파라미터 최적화 과정을 확인
+        #     optuna.visualization.plot_optimization_history(study)
+        # except:
+        #     pass    
 
     def train(self):
         print(self.data['folds'])
@@ -80,11 +88,16 @@ class CatBoostingModel:
                                     od_wait = 20,
                                     random_state = 42,
                                     )
+
+            # cat = CatBoostRegressor( **self.best_params,
+            #                         random_state = 42
+            #                         )
             cat.fit(X_train,y_train, eval_set=(X_valid, y_valid))
             self.catmodels[fold] = cat 
             print(f'================================================================================\n\n')
             #print('epoch:', epoch, 'validation: rmse:', rmse_score)
-
+        print( **self.best_params)
+        
         return 
 
 
