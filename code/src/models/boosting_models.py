@@ -8,7 +8,7 @@ import torch.optim as optim
 
 # from ._models import CatBoosting
 from ._models import rmse, RMSELoss
-
+from sklearn.model_selection import train_test_split
 from catboost import CatBoostRegressor, CatBoostClassifier, Pool
 from xgboost import XGBRegressor, XGBClassifier
 from lightgbm import LGBMRegressor, LGBMClassifier
@@ -92,44 +92,69 @@ def objective(trial: Trial, X, y, model_name, model_kind):
     return score
 
 class CatBoostingModel:
-
     def __init__(self, args, data):
         super().__init__()
 
         self.criterion = RMSELoss()
-        self.model =  CatBoostRegressor( learning_rate = 0.22711164423706456, bagging_temperature= 16.06572911754189, verbose= 200, n_estimators= 2879, max_depth= 11, random_strength= 1, colsample_bylevel= 0.8343464926823253, l2_leaf_reg=7.695579834959398e-06, min_child_samples= 8, max_bin= 451, od_type= 'IncToDec')
-        # self.model =  CatBoostClassifier( learning_rate = 0.22711164423706456, bagging_temperature= 16.06572911754189, n_estimators= 2879, max_depth= 11, random_strength= 1, colsample_bylevel= 0.8343464926823253, l2_leaf_reg=7.695579834959398e-06, min_child_samples= 8, max_bin= 451, od_type= 'IncToDec')
+        self.catmodels = {}
         self.data = data
 
-        # direction : score 값을 최대 또는 최소로 하는 방향으로 지정 
-        study = optuna.create_study(direction='minimize',sampler=TPESampler())
-
-        # n_trials : 시도 횟수 (미 입력시 Key interrupt가 있을 때까지 무한 반복)
-        study.optimize(lambda trial : objective(trial, self.data['X_train'], self.data['y_train'], 'CB', 'reg'), n_trials=50)
-        # study.optimize(lambda trial : objective(trial, self.data['X_train'], self.data['y_train'], 'CB', 'clf'), n_trials=50)
-        print('Best trial: score {},\nparams {}'.format(study.best_trial.value,study.best_trial.params))
-
-        # 하이퍼파라미터별 중요도를 확인할 수 있는 그래프
-        optuna.visualization.plot_param_importances(study)
-
-        # 하이퍼파라미터 최적화 과정을 확인
-        optuna.visualization.plot_optimization_history(study)
+        # # direction : score 값을 최대 또는 최소로 하는 방향으로 지정 
+        # study = optuna.create_study(direction='minimize',sampler=TPESampler())      
+        # # n_trials : 시도 횟수 (미 입력시 Key interrupt가 있을 때까지 무한 반복)
+        # study.optimize(lambda trial : objective(trial, self.data['train'].drop('rating',axis=1), self.data['train']['rating']), n_trials=50)
+        # print('Best trial: score {},\nparams {}'.format(study.best_trial.value,study.best_trial.params))        
+        
+        # self.best_params = study.best_params
+        # try:
+        #     # 하이퍼파라미터별 중요도를 확인할 수 있는 그래프
+        #     optuna.visualization.plot_param_importances(study)      
+        #     # 하이퍼파라미터 최적화 과정을 확인
+        #     optuna.visualization.plot_optimization_history(study)
+        # except:
+        #     pass    
 
     def train(self):
-        self.model.fit(self.data['X_train'],self.data['y_train'])
-        preds = self.model.predict(self.data['X_valid'])
-        print('RMSE : ', rmse(self.data['y_valid'], preds)) # Regressor
-        # print('RMSE : ', rmse(self.data['y_valid'], preds.squeeze(1))) # Classifier
-        #print('epoch:', epoch, 'validation: rmse:', rmse_score)
-        return 
+        print(self.data['folds'])
+        for fold in range(8):
+            print(f'===================================={fold+1}============================================')
+            train_idx, valid_idx = self.data['folds'][fold]
+            X_train = self.data['train'].drop(['rating'],axis=1).iloc[train_idx].values 
+            X_valid = self.data['train'].drop(['rating'],axis=1).iloc[valid_idx].values
+            y_train = self.data['train']['rating'][train_idx].values
+            y_valid = self.data['train']['rating'][valid_idx].values
+
+            cat = CatBoostRegressor( learning_rate= 0.048, 
+                                    depth= 15,
+                                    l2_leaf_reg= 1.5,
+                                    min_child_samples= 1,
+                                    eval_metric = 'RMSE',
+                                    bootstrap_type = 'Bernoulli',
+                                    iterations = 10000,
+                                    grow_policy = 'Depthwise',
+                                    use_best_model = True,
+                                    od_type = 'Iter',
+                                    od_wait = 20,
+                                    random_state = 42,
+                                    )
+
+            # cat = CatBoostRegressor( **self.best_params,
+            #                         random_state = 42
+            #                         )
+            cat.fit(X_train,y_train, eval_set=(X_valid, y_valid))
+            self.catmodels[fold] = cat 
+            print(f'================================================================================\n\n')
+            #print('epoch:', epoch, 'validation: rmse:', rmse_score)
+        # print( **self.best_params) 
 
     def predict(self):
-        preds = self.model.predict(self.data['test'])
+        preds =np.zeros(self.data['test'].shape[0])  
+        for fold in range(8):
+            a = self.catmodels[fold].predict(self.data['test']).transpose()
+            preds += self.catmodels[fold].predict(self.data['test'])
         print(preds)
-        return preds # Regressor
-        # return preds.squeeze(1) # Classifier
-
-
+        return (preds/8).transpose()
+        
 class XGBModel:
 
     def __init__(self, args, data):
@@ -213,8 +238,12 @@ class LGBMModel:
         #print('epoch:', epoch, 'validation: rmse:', rmse_score)
         return 
 
+
     def predict(self):
-        preds = self.model.predict(self.data['test'])
+        preds =np.zeros(self.data['test'].shape[0])  
+        for fold in range(8):
+            a = self.catmodels[fold].predict(self.data['test']).transpose()
+            preds += self.catmodels[fold].predict(self.data['test'])
         print(preds)
         return preds # Regressor
         # return preds.squeeze(1) # Classifier

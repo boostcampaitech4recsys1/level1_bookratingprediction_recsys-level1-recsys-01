@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split,StratifiedKFold
 import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader, Dataset
@@ -10,98 +10,52 @@ import sys
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 print(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 
-from .preprocessing import preprocess_category
+from .preprocessing import *
 from sklearn.preprocessing import OrdinalEncoder
 
-
-def age_map(x: int) -> int:
-    x = int(x)
-    if x < 10:
-        return 1
-    elif x >= 10 and x < 20:
-        return 2
-    elif x >= 20 and x < 30:
-        return 3
-    elif x >= 30 and x < 40:
-        return 4
-    elif x >= 40 and x < 50:
-        return 5
-    elif x >= 50 and x < 60:
-        return 6
-    else:
-        return 7
-
-def publish_year_map(x):
-    try:
-        x = int(x)
-        if x < 1900:
-            return 0
-        else:
-            return x // 10 - 190  # 1900: 0, 1990: 9, 2000: 10
-    except:
-        return x 
-
-def country_map(x):
-    if x in ['unitedstatesofamerica','losestadosunidosdenorteamerica','us']:
-        return 'usa'
-    elif x in ['england','uk']:
-        return 'unitedkingdom'
-    else :
-        return x
-
 def process_boosting_data(users, books, ratings1, ratings2,b_preprocess_category):
-    # ===================== 1. users preprocessing =====================
-    # ===================== 1-1. location
-    users['location_country'] = users['location'].apply(lambda x: x.split(',')[2])
-    users['location_country'] = users['location_country'].apply(country_map) 
-    users = users.drop(['location'], axis=1)
+    # 문자열 관련 미리 처리
+    books = process_str_column(['language', 'category','book_author','publisher'],books )
+    users = process_str_column(['location'],users )
 
-    # gu: location_country 결측치 처리
-    users['location_country'] = users['location_country'].fillna('usa')
-
-
-    # ===================== 2. books preprocessing =====================
-    # ===================== 2-1. publisher
-    publisher_dict=(books['publisher'].value_counts()).to_dict()
-    publisher_count_df= pd.DataFrame(list(publisher_dict.items()),columns = ['publisher','count'])
-
-    publisher_count_df = publisher_count_df.sort_values(by=['count'], ascending = False)
-    modify_list = publisher_count_df[publisher_count_df['count']>1].publisher.values
-
-    for publisher in modify_list:
-        try:
-            number = books[books['publisher']==publisher]['isbn'].apply(lambda x: x[:4]).value_counts().index[0]
-            right_publisher = books[books['isbn'].apply(lambda x: x[:4])==number]['publisher'].value_counts().index[0]
-            books.loc[books[books['isbn'].apply(lambda x: x[:4])==number].index,'publisher'] = right_publisher
-        except: 
-            pass
-    
-    # gu: publisher 결측치 처리
-    books['publisher'] = books['publisher'].fillna('others')
-
-    # ===================== 2-2. language
-    # gu: language 결측치처리
+   ######################## 결측치 처리  #####################################
     books['language'] = books['language'].fillna('en')
+    books['publisher'] = books['publisher'].fillna('others')
+    books['category'] = books['category'].fillna('fiction')
+    ##########################################################################
 
-    # Apply ordinal encoding on language_code to convert it into numerical column
+    ######################## users 전처리 #####################################
+    # age 관련 처리 : 86세 이상의 데이터는 버림 처리 
+    users = remove_outlier_by_age(users,85)
+    users = process_age( users , 'mean' )
+    # location 처리 : country 이상 데이터 통합 ( us, england 만 처리됨 )
+    users = process_location( target_data = users, process_level = 3 )
+    ##########################################################################
+
+    ######################## books 전처리 #####################################
+    # language 값을 numerical column 으로 변환하기 위해 ordinal encoding 적용
+    # [주의] category data 는 train_df, test_df 분할 후 후처리 
+    # [주의] train, test 데이터 분리 후 두 명 이상의 user 가 평가한 author 에 대해 user cnt 추가  
     enc = OrdinalEncoder()
     enc.fit(books[['language']])
-    books[['language']] = enc.fit_transform(books[['language']])
+    books[['language']] = enc.fit_transform(books[['language']]) 
 
-    # hhj category language 결측치 제거 
-    # train_df = train_df[~(train_df['category'].isna() & train_df['language'].isna())]
+    # books rating count : title 과 author 이 같으면 같은 책으로 봄 
+    books = get_books_with_rating_count(books, ['book_title','book_author'])
 
-    # ===================== 2-3. author
-    # gu: book_author 전처리
-    books['book_author'] = books['book_author'].str.replace(r'[^0-9a-zA-Z:,]', '')
+    # publisher 전처리 진행 
+    books = preprocess_publisher(books)
+    # 전처리된 publisher 를 count 값으로 대체 
+    books['publisher'] = get_cnt_series_by_column(books,'publisher','isbn')
+    
+    # author 를 count 값으로 대체 
+    books['book_author'] = get_cnt_series_by_column(books,'book_author','isbn')
 
-    # ===================== 2-4. category
-    # gu: category 전처리
-    books['category'] = books['category'].fillna('fiction')
+    # year of publication 추가
+    books = process_year_of_publication(books)
+    ##########################################################################
 
-
-    # ===================== 3. merge and indexing =====================
-    # ===================== 3-1. merge
+ 
     ratings = pd.concat([ratings1, ratings2]).reset_index(drop=True)
 
     # 인덱싱 처리된 데이터 조인
@@ -109,62 +63,27 @@ def process_boosting_data(users, books, ratings1, ratings2,b_preprocess_category
     train_df = ratings1.merge(users, on='user_id', how='left').merge(books[['isbn', 'category', 'publisher', 'language', 'book_author', 'year_of_publication']], on='isbn', how='left')
     test_df = ratings2.merge(users, on='user_id', how='left').merge(books[['isbn', 'category', 'publisher', 'language', 'book_author', 'year_of_publication']], on='isbn', how='left')
 
-    # ===================== 3-2. users columns 인덱싱처리
     # 인덱싱 처리
     loc_country2idx = {v:k for k,v in enumerate(context_df['location_country'].unique())}
+    loc_state2idx = {v:k for k,v in enumerate(context_df['location_state'].unique())}
+    loc_city2idx = {v:k for k,v in enumerate(context_df['location_city'].unique())}
 
     train_df['location_country'] = train_df['location_country'].map(loc_country2idx)
     test_df['location_country'] = test_df['location_country'].map(loc_country2idx)
+    train_df['location_state'] = train_df['location_state'].map(loc_state2idx)
+    test_df['location_state'] = test_df['location_state'].map(loc_state2idx)
+    train_df['location_city'] = train_df['location_city'].map(loc_city2idx)
+    test_df['location_city'] = test_df['location_city'].map(loc_city2idx)
 
-    train_df['age'] = train_df['age'].fillna(int(train_df['age'].mean()))
-    train_df['age'] = train_df['age'].apply(age_map)
-    test_df['age'] = test_df['age'].fillna(int(test_df['age'].mean()))
-    test_df['age'] = test_df['age'].apply(age_map)
+    # category 전처리 
+    train_df = preprocess_category(train_df)
+    test_df = preprocess_category(test_df)
 
-    # ===================== 3-3. book author preprocessing after merge
-    # gu book_author 변수 추가
-    # 1) 작가별 출판 책 수 추가
-    author_cnt = books.groupby('book_author')[['isbn']].agg('count').sort_values(by='isbn', ascending=False).rename(columns={'isbn': 'author_book_cnt'}).reset_index()
-    train_df = train_df.merge(author_cnt, on='book_author', how='left')
-    test_df = test_df.merge(author_cnt, on='book_author', how='left')
-    # 2) 작가별 단골 추가
-    common = train_df.groupby(['book_author', 'user_id'])[['rating']].count()
-    author_common = common[common['rating']>2].groupby('book_author').count().sort_values('rating', ascending=False).rename(columns={'rating': 'author_common_cnt'}).reset_index()
-    train_df = train_df.merge(author_common, on='book_author', how='left')
-    train_df['author_common_cnt'].fillna(0, inplace=True)
-    test_df = test_df.merge(author_common, on='book_author', how='left')
-    test_df['author_common_cnt'].fillna(0, inplace=True) 
+    # 작가별 단골 
+    train_df = add_regular_custom_by_author(train_df)
+    test_df = add_regular_custom_by_author(test_df)
 
-    # ===================== 3-4. books columns 인덱싱처리
-    publisher2idx = {v:k for k,v in enumerate(context_df['publisher'].unique())}
-    language2idx = {v:k for k,v in enumerate(context_df['language'].unique())}
-    author2idx = {v:k for k,v in enumerate(context_df['book_author'].unique())}
-    category2idx = {v:k for k,v in enumerate(context_df['category'].unique())}
-
-    if( False == b_preprocess_category ):
-        train_df['category'] = train_df['category'].map(category2idx)
-        test_df['category'] = test_df['category'].map(category2idx)
-    else:
-        train_df = preprocess_category(train_df)
-        test_df = preprocess_category(test_df)
-
-    train_df['publisher'] = train_df['publisher'].map(publisher2idx)
-    train_df['book_author'] = train_df['book_author'].map(author2idx)
-
-    test_df['publisher'] = test_df['publisher'].map(publisher2idx)
-    test_df['book_author'] = test_df['book_author'].map(author2idx)
-
-    # gu: year of publication 추가
-    train_df['year_of_publication'] = train_df['year_of_publication'].apply(publish_year_map)
-    test_df['year_of_publication'] = test_df['year_of_publication'].apply(publish_year_map)
-
-    idx = {
-        "loc_country2idx":loc_country2idx,
-        "publisher2idx":publisher2idx,
-        "author2idx":author2idx,
-    }
-
-    return idx, train_df, test_df
+    return train_df, test_df
 
 def boosting_data_load(args):
 
@@ -194,7 +113,7 @@ def boosting_data_load(args):
     test['isbn'] = test['isbn'].map(isbn2idx)
     books['isbn'] = books['isbn'].map(isbn2idx)
 
-    idx, context_train, context_test = process_boosting_data(users, books, train, test, True)
+    context_train, context_test = process_boosting_data(users, books, train, test, True)
 
     data = {
             'train':context_train,
@@ -213,15 +132,16 @@ def boosting_data_load(args):
 
 
 def boosting_data_split(args, data):
-    X_train, X_valid, y_train, y_valid = train_test_split(
-                                                        data['train'].drop(['rating'], axis=1),
-                                                        data['train']['rating'],
-                                                        test_size=args.TEST_SIZE,
-                                                        random_state=args.SEED,
-                                                        shuffle=True
-                                                        )
-    data['X_train'], data['X_valid'], data['y_train'], data['y_valid'] = X_train, X_valid, y_train, y_valid
+    skf = StratifiedKFold(n_splits=8, shuffle=True, random_state=42)
+    folds = []
+
+    for train_idx, valid_idx in skf.split(data['train'].drop(['rating'], axis=1), data['train']['rating']):
+        folds.append((train_idx,valid_idx))
+    
+    data['folds'] = folds 
+
     return data
+
 
 def boosting_data_loader(args, data):
     train_dataset = TensorDataset(torch.LongTensor(data['X_train'].values), torch.LongTensor(data['y_train'].values))
