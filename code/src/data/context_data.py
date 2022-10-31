@@ -48,6 +48,10 @@ def process_context_data(users, books, ratings1, ratings2, b_preprocess_category
     # gu: category 전처리
     books['category'] = books['category'].fillna('fiction')
 
+    # ===================== 2-4. category
+    # gu: category 전처리
+    books['category'] = books['category'].fillna('fiction')
+
 
     # ===================== 3. merge and indexing =====================
     # ===================== 3-1. merge
