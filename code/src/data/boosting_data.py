@@ -122,7 +122,7 @@ def after_preprocessing(args, train, test, whole_df):
     if( 'CatBoosting'== args.MODEL ):
         pass
 
-    elif( 'XGBoost'== args.MODEL ):
+    elif( 'XGBoost'== args.MODEL or 'LightGBM'== args.MODEL ):
 
         loc_country2idx = {v:k for k,v in enumerate(whole_df['location_country'].unique())}
         loc_state2idx = {v:k for k,v in enumerate(whole_df['location_state'].unique())}

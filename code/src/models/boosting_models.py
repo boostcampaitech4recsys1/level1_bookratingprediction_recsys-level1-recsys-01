@@ -259,10 +259,7 @@ class LGBMModel:
 
 
     def predict(self):
-        preds =np.zeros(self.data['test'].shape[0])  
-        for fold in range(8):
-            a = self.catmodels[fold].predict(self.data['test']).transpose()
-            preds += self.catmodels[fold].predict(self.data['test'])
+        preds = self.model.predict(self.data['test'])
         print(preds)
         return preds # Regressor
         # return preds.squeeze(1) # Classifier
