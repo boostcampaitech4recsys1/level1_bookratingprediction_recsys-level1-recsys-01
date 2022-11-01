@@ -55,14 +55,22 @@ def get_category_high(x : str ):
     else :
         return x
 
-def preprocess_category( books ):
-    # category column 의 string 전처리 ( 특수문자 삭제 및 소문자 변환 )는 이미 된 상태로 전달 되어야 함 
-    # 결측치는 우선 ohter 로 채워준다. 
-    books['category'].fillna('fiction',inplace=True)
-    books['category_high'] = books['category'].apply(get_category_high) 
-    books['category_rank'] = books.category_high.map({'fiction' : 1, 'juvenilefiction' : 1, 'biography' : 2, 'history' : 3,'sociology': 4,
+def map_category_with_ranking( target_data ):
+    
+    """
+    preprocess_category 를 통해 전처리된 category 가 전달 되어야 한다.
+    """
+    target_data['category'] = target_data['category'].map({'fiction' : 1, 'juvenilefiction' : 1, 'biography' : 2, 'history' : 3,'sociology': 4,
                                       'bible' : 5, 'psychology' : 6, 'nonfiction' : 7, 'comic' : 8, 'art' : 9})
     # 나머지는 1으로 채워준다. 
-    books['category_rank'].fillna(1)
-    books.drop(columns=['category','category_high'],inplace=True)
-    return books
+    target_data['category'] = target_data['category'].fillna(1)
+    return target_data
+
+
+def preprocess_category( target_data ):
+    
+    # category column 의 string 전처리 ( 특수문자 삭제 및 소문자 변환 )는 이미 된 상태로 전달 되어야 함 
+    target_data['category'] = target_data['category'].apply(get_category_high) 
+    # 나머지는 'fiction' 으로 채워준다. 
+    target_data['category'].fillna('fiction')
+    return target_data

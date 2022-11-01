@@ -61,21 +61,20 @@ def process_location( target_data : pd.DataFrame, process_level:int )->pd.DataFr
         # target_data[cur_str] = target_data['location'].apply(lambda x: x.split(',')[2])
         target_data[cur_str] = target_data['location'].apply(lambda x: x.split(',')[2] if len(x.split(','))==3 else x.split(',')[3] )
         target_data[cur_str] = target_data[cur_str].apply(country_map)
+        target_data[cur_str] = target_data[cur_str].apply(lambda x: re.sub('[^0-9a-zA-Z]','',x).strip())
 
     if process_level >= 2 :
         cur_str = basic_str + level_map[2]
         # target_data[cur_str] = target_data['location'].apply(lambda x: x.split(',')[1])
         target_data['location_state'] = target_data['location'].apply(lambda x: x.split(',')[1] if len(x.split(','))==3 else ( x.split(',')[1] if x.split(',')[2]=='' else x.split(',')[2] ))
+        target_data[cur_str] = target_data[cur_str].apply(lambda x: re.sub('[^0-9a-zA-Z]','',x).strip())
         
     
     if process_level >= 3 :
         cur_str = basic_str + level_map[3]
         target_data[cur_str] = target_data['location'].apply(lambda x: x.split(',')[0])
+        target_data[cur_str] = target_data[cur_str].apply(lambda x: re.sub('[^0-9a-zA-Z]','',x).strip())
         
-    target_data['location_country'] = target_data['location_country'].apply(lambda x: re.sub('[^0-9a-zA-Z]','',x).strip())
-    target_data['location_state'] = target_data['location_state'].apply(lambda x: re.sub('[^0-9a-zA-Z]','',x).strip())
-    target_data['location_city'] = target_data['location_city'].apply(lambda x: re.sub('[^0-9a-zA-Z]','',x).strip())
-    
     country_unique = target_data['location_country'].unique().tolist()
     for country in country_unique:
         if target_data[target_data['location_country']==country].shape[0]< 5:
