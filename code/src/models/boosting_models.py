@@ -119,10 +119,10 @@ class CatBoostingModel:
         for fold in range(8):
             print(f'===================================={fold+1}============================================')
             train_idx, valid_idx = self.data['folds'][fold]
-            X_train = self.data['train'].drop(['rating'],axis=1).iloc[train_idx].values 
-            X_valid = self.data['train'].drop(['rating'],axis=1).iloc[valid_idx].values
-            y_train = self.data['train']['rating'][train_idx].values
-            y_valid = self.data['train']['rating'][valid_idx].values
+            X_train = self.data['train'].drop(['rating'],axis=1).iloc[train_idx] 
+            X_valid = self.data['train'].drop(['rating'],axis=1).iloc[valid_idx]
+            y_train = self.data['train']['rating'][train_idx]
+            y_valid = self.data['train']['rating'][valid_idx]
 
             cat = CatBoostRegressor( learning_rate= 0.048, 
                                     depth= 15,
@@ -136,6 +136,7 @@ class CatBoostingModel:
                                     od_type = 'Iter',
                                     od_wait = 20,
                                     random_state = 42,
+                                    cat_features = self.data['cat_features']
                                     )
 
             # cat = CatBoostRegressor( **self.best_params,
@@ -180,6 +181,15 @@ class XGBModel:
         # optuna.visualization.plot_optimization_history(study)
 
     def train(self):
+        X_train, X_valid, y_train, y_valid = train_test_split(
+                                                        self.data['train'].drop(['rating'], axis=1),
+                                                        self.data['train']['rating'],
+                                                        test_size=0.2,
+                                                        random_state=42,
+                                                        shuffle=True
+                                                        )
+        self.data['X_train'],  self.data['X_valid'],  self.data['y_train'],  self.data['y_valid'] = X_train, X_valid, y_train, y_valid
+
         self.model.fit(self.data['X_train'],self.data['y_train'])
         preds = self.model.predict(self.data['X_valid'])
         print('RMSE : ', rmse(self.data['y_valid'], preds)) # Regressor
@@ -231,6 +241,15 @@ class LGBMModel:
         # optuna.visualization.plot_optimization_history(study)
 
     def train(self):
+        X_train, X_valid, y_train, y_valid = train_test_split(
+                                                        self.data['train'].drop(['rating'], axis=1),
+                                                        self.data['train']['rating'],
+                                                        test_size=0.2,
+                                                        random_state=42,
+                                                        shuffle=True
+                                                        )
+        self.data['X_train'],  self.data['X_valid'],  self.data['y_train'],  self.data['y_valid'] = X_train, X_valid, y_train, y_valid
+
         self.model.fit(self.data['X_train'],self.data['y_train'])
         preds = self.model.predict(self.data['X_valid'])
         print('RMSE : ', rmse(self.data['y_valid'], preds)) # Regressor
