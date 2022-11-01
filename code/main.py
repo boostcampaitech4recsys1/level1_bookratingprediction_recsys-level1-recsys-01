@@ -18,7 +18,8 @@ from src import DeepCoNN
 from src import CatBoostingModel
 from src import XGBModel
 from src import LGBMModel
-
+from src import BoostingModel
+from src import KfoldWrapper
 
 def main(args):
     seed_everything(args.SEED)
@@ -35,13 +36,13 @@ def main(args):
         import nltk
         nltk.download('punkt')
         data = text_data_load(args)
-    elif args.MODEL == 'CatBoosting':
+    elif args.MODEL == 'CatBoostRegressor':
         data = boosting_data_load(args)
         pass
-    elif args.MODEL == 'XGBoost':
+    elif args.MODEL == 'XGBRegressor':
         data = boosting_data_load(args)
         pass
-    elif args.MODEL == 'LightGBM':
+    elif args.MODEL == 'LightGBMRegressor':
         data = boosting_data_load(args)
         pass
     else:
@@ -65,7 +66,7 @@ def main(args):
         data = text_data_split(args, data)
         data = text_data_loader(args, data)
 
-    elif args.MODEL in ('CatBoosting', 'XGBoost', 'LightGBM'):
+    elif args.MODEL in ('CatBoostRegressor', 'XGBRegressor', 'LightGBMRegressor'):
         data = boosting_data_split(args, data)
         pass
 
@@ -88,14 +89,24 @@ def main(args):
         model = CNN_FM(args, data)
     elif args.MODEL=='DeepCoNN':
         model = DeepCoNN(args, data)
-    elif args.MODEL=='CatBoosting':
-        model = CatBoostingModel(args, data)
-    elif args.MODEL=='XGBoost':
+    elif args.MODEL in ('CatBoostRegressor', 'XGBRegressor', 'LightGBMRegressor'):
+        model = BoostingModel(args,data)
+    else:
+        pass
+    """
+    elif args.MODEL=='CatBoostRegressor':
+        # model = CatBoostingModel(args, data)
+        model = BoostingModel(args,data)
+    elif args.MODEL=='XGBRegressor':
         model = XGBModel(args, data)
     elif args.MODEL=='LightGBM':
         model = LGBMModel(args, data)
-    else:
-        pass
+    """
+
+
+    print(f'--------------- K_FOLD : {args.K_FOLDS} USE ---------------')
+    if args.K_FOLDS > 0 :
+        model = KfoldWrapper(args, model, args.K_FOLDS)
 
     ######################## TRAIN
     print(f'--------------- {args.MODEL} TRAINING ---------------')
@@ -109,7 +120,7 @@ def main(args):
         predicts  = model.predict(data['test_dataloader'])
     elif args.MODEL=='DeepCoNN':
         predicts  = model.predict(data['test_dataloader'])
-    elif args.MODEL in ('CatBoosting', 'XGBoost', 'LightGBM'):
+    elif args.MODEL in ('CatBoostRegressor', 'XGBRegressor', 'LightGBMRegressor'):
         predicts = model.predict()
     else:
         pass
@@ -117,7 +128,7 @@ def main(args):
     ######################## SAVE PREDICT
     print(f'--------------- SAVE {args.MODEL} PREDICT ---------------')
     submission = pd.read_csv(args.DATA_PATH + 'sample_submission.csv')
-    if args.MODEL in ('FM', 'FFM', 'NCF', 'WDN', 'DCN', 'CNN_FM', 'DeepCoNN','CatBoosting', 'XGBoost', "LightGBM"):
+    if args.MODEL in ('FM', 'FFM', 'NCF', 'WDN', 'DCN', 'CNN_FM', 'DeepCoNN','CatBoostRegressor', 'XGBRegressor', "LightGBMRegressor"):
         submission['rating'] = predicts
     else:
         pass
@@ -138,7 +149,7 @@ if __name__ == "__main__":
 
     ############### BASIC OPTION
     arg('--DATA_PATH', type=str, default='data/', help='Data path를 설정할 수 있습니다.')
-    arg('--MODEL', type=str, choices=['FM', 'FFM', 'NCF', 'WDN', 'DCN', 'CNN_FM', 'DeepCoNN', 'CatBoosting', 'XGBoost', 'LightGBM'],
+    arg('--MODEL', type=str, choices=['FM', 'FFM', 'NCF', 'WDN', 'DCN', 'CNN_FM', 'DeepCoNN', 'CatBoostRegressor', 'XGBRegressor', 'LightGBMRegressor'],
                                 help='학습 및 예측할 모델을 선택할 수 있습니다.')
     arg('--DATA_SHUFFLE', type=bool, default=True, help='데이터 셔플 여부를 조정할 수 있습니다.')
     arg('--TEST_SIZE', type=float, default=0.2, help='Train/Valid split 비율을 조정할 수 있습니다.')
@@ -188,5 +199,7 @@ if __name__ == "__main__":
     arg('--DEEPCONN_WORD_DIM', type=int, default=768, help='DEEP_CONN에서 1D conv의 입력 크기를 조정할 수 있습니다.')
     arg('--DEEPCONN_OUT_DIM', type=int, default=32, help='DEEP_CONN에서 1D conv의 출력 크기를 조정할 수 있습니다.')
 
+    arg('--DO_OPTUNA', type=bool, default = False, help ='Optuna 실행 설정')
+    arg('--K_FOLDS', type=int, default = 0, help ='군집 개수 설정')
     args = parser.parse_args()
     main(args)

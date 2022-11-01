@@ -62,6 +62,14 @@ def process_boosting_data(users, books, ratings1, ratings2):
 
     # year of publication 추가
     books = process_year_of_publication(books)
+
+    book_rating_df = ratings1.merge(books[['isbn', 'book_author', 'book_title']], on='isbn', how='left')
+    book_rating_info = book_rating_df.groupby(["book_author","book_title"])['rating'].agg(['count','mean'])
+    book_rating_info.columns = ['rated_count','rating_mean']
+    book_rating_info.drop(book_rating_info[book_rating_info['rated_count']<50].index,inplace=True)
+    books = books.merge(book_rating_info, on=['book_author','book_title'], how='left')
+    books['rating_mean'].fillna(6.9,inplace=True)
+    books['rating_mean'] = books['rating_mean'].apply(lambda x: int(x))
     ##########################################################################
 
     # 인덱싱 처리된 데이터 조인
@@ -119,10 +127,10 @@ def process_boosting_data(users, books, ratings1, ratings2):
 def after_preprocessing(args, train, test, whole_df):
     
     # todo preprocess mode 에 따라 변경해도 좋을 것같다.
-    if( 'CatBoosting'== args.MODEL ):
+    if( 'CatBoost' in args.MODEL ):
         pass
 
-    elif( 'XGBoost'== args.MODEL or 'LightGBM'== args.MODEL ):
+    elif( 'XGB' in args.MODEL or 'LightGBM' in args.MODEL ):
 
         loc_country2idx = {v:k for k,v in enumerate(whole_df['location_country'].unique())}
         loc_state2idx = {v:k for k,v in enumerate(whole_df['location_state'].unique())}
@@ -209,14 +217,14 @@ def boosting_data_load(args):
 
 
 def boosting_data_split(args, data):
-    skf = StratifiedKFold(n_splits=8, shuffle=True, random_state=42)
-    folds = []
-
-    for train_idx, valid_idx in skf.split(data['train'].drop(['rating'], axis=1), data['train']['rating']):
-        folds.append((train_idx,valid_idx))
-    
-    data['folds'] = folds 
-
+    X_train, X_valid, y_train, y_valid = train_test_split(
+                                                        data['train'].drop(['rating'], axis=1),
+                                                        data['train']['rating'],
+                                                        test_size=args.TEST_SIZE,
+                                                        random_state=args.SEED,
+                                                        shuffle=True
+                                                        )
+    data['X_train'], data['X_valid'], data['y_train'], data['y_valid'] = X_train, X_valid, y_train, y_valid
     return data
 
 
