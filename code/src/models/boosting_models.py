@@ -63,9 +63,9 @@ class BoostingModel:
 
         self.my_model = self.my_model(**self.best_params)
         if( "CatBoostRegressor"== self.model_name ): 
-            cur_predict_model.fit(X_train,y_train, eval_set=(X_valid, y_valid))
+            self.my_model.fit(X_train,y_train, eval_set=(X_valid, y_valid))
         else:
-            cur_predict_model.fit(X_train,y_train)
+            self.my_model.fit(X_train,y_train)
 
         self.my_model.fit(self.data['X_train'],self.data['y_train'])
         preds = self.my_model.predict(self.data['X_valid'])
