@@ -114,15 +114,15 @@ def process_context_data(users, books, ratings1, ratings2, b_preprocess_category
     train_df = process_year_of_publication(train_df)
     test_df = process_year_of_publication(test_df)
 
-    # SVD, CoClustering 값 채우기
-    print('before combine')
-    print(train_df.shape, test_df.shape, len(ratings1))
-    train_df, test_df = combine_features(ratings1, ratings2, train_df, test_df)
-    print('after combine')
-    print(train_df.shape, test_df.shape)
-    # print(train_df.head())
-    # print(ratings.head())
-    # print(ratings1.head())
+    # # SVD, CoClustering 값 채우기
+    # print('before combine')
+    # print(train_df.shape, test_df.shape, len(ratings1))
+    # train_df, test_df = combine_features(ratings1, ratings2, train_df, test_df)
+    # print('after combine')
+    # print(train_df.shape, test_df.shape)
+    # # print(train_df.head())
+    # # print(ratings.head())
+    # # print(ratings1.head())
 
     idx = {
         "loc_city2idx":loc_city2idx,
