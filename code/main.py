@@ -5,6 +5,8 @@ import pandas as pd
 
 from src import seed_everything
 
+from src.data.postprocessing import get_rating_average
+
 from src.data import context_data_load, context_data_split, context_data_loader
 from src.data import dl_data_load, dl_data_split, dl_data_loader
 from src.data import image_data_load, image_data_split, image_data_loader
@@ -125,13 +127,17 @@ def main(args):
     else:
         pass
 
-    ######################## SAVE PREDICT
+    ######################## POSTPROCESSING & SAVE PREDICT
     print(f'--------------- SAVE {args.MODEL} PREDICT ---------------')
     submission = pd.read_csv(args.DATA_PATH + 'sample_submission.csv')
     if args.MODEL in ('FM', 'FFM', 'NCF', 'WDN', 'DCN', 'CNN_FM', 'DeepCoNN','CatBoostRegressor', 'XGBRegressor', "LightGBMRegressor"):
         submission['rating'] = predicts
+        
+        #POSTPROCESSING
+        submission = get_rating_average(submission,3)
     else:
         pass
+    
 
     now = time.localtime()
     now_date = time.strftime('%Y%m%d', now)
