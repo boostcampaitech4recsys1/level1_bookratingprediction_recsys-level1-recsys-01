@@ -12,7 +12,7 @@ from _models import rmse, RMSELoss
 # optuna 의 object 에서 사용할 parameter 를 가져오는 함수 
 def get_parameter( trial: Trial, model_name: str ):
 
-    model_name_list = ['CatBoostRegressor','XGBoostRegressor', "LightGBMRegressor" ]
+    model_name_list = ['CatBoostRegressor','XGBRegressor', "LightGBMRegressor" ]
     
     if( model_name not in model_name_list ):
         print("[ERROR] this model is not provided. ", model_name)
