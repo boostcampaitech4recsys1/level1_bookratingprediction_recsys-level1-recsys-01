@@ -20,7 +20,7 @@ class KfoldWrapper :
         self.model_name = args.MODEL
         self.cur_model_collect = {}
 
-        skf = StratifiedKFold(n_splits=8, shuffle=True, random_state=42)
+        skf = StratifiedKFold(n_splits = kfold_num, shuffle=True, random_state=42)
         folds = []
 
         for train_idx, valid_idx in skf.split( wrapper_model_class.data['train'].drop(['rating'], axis=1), 

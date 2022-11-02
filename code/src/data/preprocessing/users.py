@@ -23,14 +23,22 @@ def country_map(x):
     # if x in ['','na']:
     #     return 'usa'
     # 도시명만 존재할 경우에도 나라가 usa로 바뀜.
-    if x in ['unitedstatesofamerica','losestadosunidosdenorteamerica','us','unitedstate','unitedstaes','unitedstatesofamerica','unitedsates','unitedstates']:
+    if x in ['ca','canada','can','k1c7b1']:
+        return 'can'
+    if x in ['america','everywhereandanywhere','stthomasi','csa','losestadosunidosdenorteamerica','unitedstatesofamerica','losestadosunidosdenorteamerica','us','unitedstate','unitedstaes','unitedstatesofamerica','unitedsates','unitedstates']:
         return 'usa'
-    elif x in ['uk','unitedkingdom','unitedkindgonm']:
-        return 'unitedkingdom'
-    elif x in ['deutschland']:
-        return 'germany'
-    elif x in ['catalunya','espaa']:
-        return 'spain'
+    elif x in [ 'gbr','uk','unitedkingdom','unitedkindgonm']:
+        return 'gbr'
+    elif x in ['deutschland','germany']:
+        return 'deu'
+    elif x in ['catalunya','espaa','spain']:
+        return 'spa'
+    elif x in ['nz','newzealand']:
+        return 'nzl'
+    elif x in ['australia','austria']:
+        return 'aus'
+    elif x in ['switzerland','lasuisse']:
+        return 'che'
     else :
         return x
 
