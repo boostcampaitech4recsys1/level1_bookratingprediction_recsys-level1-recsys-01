@@ -93,6 +93,49 @@ def process_location( target_data : pd.DataFrame, process_level:int )->pd.DataFr
     target_data = target_data.drop(['location'], axis=1)
     return target_data
 
+# boosting model test 를 위한 임시 함수 
+def process_location_v2( target_data : pd.DataFrame, process_level:int )->pd.DataFrame:
+    
+    if 'location' not in target_data.columns:
+        raise Exception( '[preprocess_location] location column not in target_data')
+
+    level_map = { 1 : 'country' , 2 : 'state', 3:'city'}
+    # location 특수 문자 제거
+    basic_str = 'location_'
+    
+    # u['location_country'] = u['location'].apply(lambda x: x.split(',')[2] if len(x.split(','))==3 else x.split(',')[3] )
+    # u['location_state'] = u['location'].apply(lambda x: x.split(',')[1] if len(x.split(','))==3 else ( x.split(',')[1] if x.split(',')[2]=='' else x.split(',')[2] ))
+    # u['location_city'] = u['location'].apply(lambda x: x.split(',')[0])
+    
+    if process_level >= 1 : 
+        cur_str = basic_str + level_map[1]
+        # target_data[cur_str] = target_data['location'].apply(lambda x: x.split(',')[2])
+        target_data[cur_str] = target_data['location'].apply(lambda x: x.split(',')[2] if len(x.split(','))==3 else x.split(',')[3] )
+        target_data[cur_str] = target_data[cur_str].apply(country_map)
+        target_data[cur_str] = target_data[cur_str].apply(lambda x: re.sub('[^0-9a-zA-Z]','',x).strip())
+
+    if process_level >= 2 :
+        cur_str = basic_str + level_map[2]
+        # target_data[cur_str] = target_data['location'].apply(lambda x: x.split(',')[1])
+        target_data['location_state'] = target_data['location'].apply(lambda x: x.split(',')[1] if len(x.split(','))==3 else ( x.split(',')[1] if x.split(',')[2]=='' else x.split(',')[2] ))
+        target_data[cur_str] = target_data[cur_str].apply(lambda x: re.sub('[^0-9a-zA-Z]','',x).strip())
+        
+    
+    if process_level >= 3 :
+        cur_str = basic_str + level_map[3]
+        target_data[cur_str] = target_data['location'].apply(lambda x: x.split(',')[0])
+        target_data[cur_str] = target_data[cur_str].apply(lambda x: re.sub('[^0-9a-zA-Z]','',x).strip())
+        
+    country_unique = target_data['location_country'].unique().tolist()
+    for country in country_unique:
+        if target_data[target_data['location_country']==country].shape[0]< 5:
+            target_data.loc[target_data['location_country']==country,"location_country"] = 'Remove_Point'
+    target_data.drop(target_data[target_data['location_country']=='Remove_Point'].index,inplace=True)
+    # target_data.drop(target_data[target_data['location_country']==''].index,inplace=True)
+    
+    # target_data = target_data.drop(['location'], axis=1)
+    return target_data
+
 
 def process_age( target_data : pd.DataFrame,  how : object = 'mean') -> pd.DataFrame:
     """
