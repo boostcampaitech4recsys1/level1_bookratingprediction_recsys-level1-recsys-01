@@ -1,4 +1,5 @@
 import pandas as pd
+import re
 
 def make_item_2_idx_map( target_key_list:list, target_data:pd.DataFrame ) :
     
@@ -33,8 +34,10 @@ def process_str_column( target_key_list:list, target_data:pd.DataFrame ) ->pd.Da
             if key not in target_data.columns:
                 print('[WARN][remove_special_char_of_str] ', key, ' is not element of target_data')
                 continue 
-
-            target_data[key] = target_data[key].str.replace(r'[^0-9a-zA-Z:,]', '',regex = True) # 특수문자 제거
+            if key == 'category':
+                target_data.loc[target_data[target_data[key].notnull()].index, 'category'] = target_data[target_data['category'].notnull()]['category'].apply(lambda x: re.sub('[\W_]+',' ',x).strip())
+            else : 
+                target_data[key] = target_data[key].str.replace(r'[^0-9a-zA-Z:,]', '',regex = True) # 특수문자 제거
             target_data[key] = target_data[key].str.lower() # 소문자 변경 
         return target_data
     except Exception as e :

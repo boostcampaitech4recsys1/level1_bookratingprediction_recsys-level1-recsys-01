@@ -63,13 +63,13 @@ def process_boosting_data(users, books, ratings1, ratings2):
     # year of publication 추가
     books = process_year_of_publication(books)
 
-    book_rating_df = ratings1.merge(books[['isbn', 'book_author', 'book_title']], on='isbn', how='left')
-    book_rating_info = book_rating_df.groupby(["book_author","book_title"])['rating'].agg(['count','mean'])
-    book_rating_info.columns = ['rated_count','rating_mean']
-    book_rating_info.drop(book_rating_info[book_rating_info['rated_count']<50].index,inplace=True)
-    books = books.merge(book_rating_info, on=['book_author','book_title'], how='left')
-    books['rating_mean'].fillna(6.9,inplace=True)
-    books['rating_mean'] = books['rating_mean'].apply(lambda x: int(x))
+    # book_rating_df = ratings1.merge(books[['isbn', 'book_author', 'book_title']], on='isbn', how='left')
+    # book_rating_info = book_rating_df.groupby(["book_author","book_title"])['rating'].agg(['count','mean'])
+    # book_rating_info.columns = ['rated_count','rating_mean']
+    # book_rating_info.drop(book_rating_info[book_rating_info['rated_count']<50].index,inplace=True)
+    # books = books.merge(book_rating_info, on=['book_author','book_title'], how='left')
+    # books['rating_mean'].fillna(6.9,inplace=True)
+    # books['rating_mean'] = books['rating_mean'].apply(lambda x: int(x))
     ##########################################################################
 
     # 인덱싱 처리된 데이터 조인
