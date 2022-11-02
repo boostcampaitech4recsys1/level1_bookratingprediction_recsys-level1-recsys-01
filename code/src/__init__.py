@@ -10,8 +10,9 @@ from .models.context_models import FactorizationMachineModel, FieldAwareFactoriz
 from .models.dl_models import NeuralCollaborativeFiltering, WideAndDeepModel, DeepCrossNetworkModel
 from .models.image_models import CNN_FM
 from .models.text_models import DeepCoNN
-from .models.boosting_models import CatBoostingModel
+from .models.boosting_models import CatBoostingModel,BoostingModel
 from .models.boosting_models import XGBModel
 from .models.boosting_models import LGBMModel
+from .models.utils import KfoldWrapper
 
 from .ensembles.ensembles import Ensemble

@@ -98,7 +98,9 @@ def process_context_data(users, books, ratings1, ratings2, b_preprocess_category
         test_df['category'] = test_df['category'].map(category2idx)
     else:
         train_df = preprocess_category(train_df)
+        train_df = map_category_with_ranking(train_df)
         test_df = preprocess_category(test_df)
+        test_df = map_category_with_ranking(test_df)
 
     train_df['publisher'] = train_df['publisher'].map(publisher2idx)
     train_df['language'] = train_df['language'].map(language2idx)

@@ -12,84 +12,73 @@ from sklearn.model_selection import train_test_split
 from catboost import CatBoostRegressor, CatBoostClassifier, Pool
 from xgboost import XGBRegressor, XGBClassifier
 from lightgbm import LGBMRegressor, LGBMClassifier
+from .utils import do_optuna,get_parameter
 
-import optuna 
-from optuna import Trial, visualization
-from optuna.samplers import TPESampler
+import json
+import os
 
-def objective(trial: Trial, X, y, model_name, model_kind):
-    param = {}
-    score = None
-    if model_name == 'CB':
-        param = {
-        "random_state":42,
-        'learning_rate' : trial.suggest_loguniform('learning_rate', 0.01, 0.3),
-        'bagging_temperature' :trial.suggest_loguniform('bagging_temperature', 0.01, 100.00),
-        "n_estimators":trial.suggest_int("n_estimators", 1000, 10000),
-        "max_depth":trial.suggest_int("max_depth", 4, 16),
-        'random_strength' :trial.suggest_int('random_strength', 0, 100),
-        "colsample_bylevel":trial.suggest_float("colsample_bylevel", 0.4, 1.0),
-        "l2_leaf_reg":trial.suggest_float("l2_leaf_reg",1e-8,3e-5),
-        "min_child_samples": trial.suggest_int("min_child_samples", 5, 100),
-        "max_bin": trial.suggest_int("max_bin", 200, 500),
-        'od_type': trial.suggest_categorical('od_type', ['IncToDec', 'Iter']),
-        }
-        if model_kind == 'clf':
-            model = CatBoostClassifier(**param)
-            catboost_model = model.fit(X, y,  early_stopping_rounds=35, verbose=100)
-            ## RMSE으로 Loss 계산
-            score = rmse( y,catboost_model.predict(X).squeeze(1))
-        elif model_kind == 'reg':
-            model = CatBoostRegressor(**param)
-            catboost_model = model.fit(X, y,  early_stopping_rounds=35, verbose=100)
-            ## RMSE으로 Loss 계산
-            score = rmse( y,catboost_model.predict(X))
-    elif model_name == 'XGB':
-        param = {
-            # 'tree_method':'gpu_hist',  # this parameter means using the GPU when training our model to speedup the training process
-            # 'lambda': trial.suggest_loguniform('lambda', 1e-3, 10.0),
-            # 'alpha': trial.suggest_loguniform('alpha', 1e-3, 10.0),
-            # 'colsample_bytree': trial.suggest_categorical('colsample_bytree', [0.3,0.4,0.5,0.6,0.7,0.8,0.9, 1.0]),
-            # 'subsample': trial.suggest_categorical('subsample', [0.4,0.5,0.6,0.7,0.8,1.0]),
-            # 'learning_rate': trial.suggest_categorical('learning_rate', [0.008,0.01,0.012,0.014,0.016,0.018, 0.02]),
-            # 'n_estimators': 10000,
-            # 'max_depth': trial.suggest_categorical('max_depth', [5,7,9,11,13,15,17]),
-            # 'random_state': trial.suggest_categorical('random_state', [2020]),
-            # 'min_child_weight': trial.suggest_int('min_child_weight', 1, 300),
-            "max_depth": trial.suggest_int("max_depth", 6, 10),
-            "learning_rate": trial.suggest_uniform('learning_rate', 0.0001, 0.99),
-            'n_estimators': trial.suggest_int("n_estimators", 400, 4000, 400),
-            'reg_lambda': trial.suggest_loguniform('reg_lambda', 1e-4, 1e4), # L2 regularization
-            'reg_alpha': trial.suggest_loguniform('reg_alpha', 1e-4, 1e4), # L1 regularization
-            'gamma': trial.suggest_loguniform('gamma', 1e-4, 1e4),
-            'subsample': trial.suggest_discrete_uniform('subsample', 0.2, 0.9, 0.1),     
-            'min_child_weight': trial.suggest_loguniform('min_child_weight', 1e-4, 1e4),
-            }
-        if model_kind == 'clf':
-            model = XGBClassifier(**param)
-            model.fit(X, y, early_stopping_rounds=100, verbose=100)
-            ## RMSE으로 Loss 계산
-            score = rmse( y, model.predict(X).squeeze(1))
-        elif model_kind == 'reg':
-            model = XGBRegressor(**param)
-            model.fit(X, y, early_stopping_rounds=100, verbose=100)
-            ## RMSE으로 Loss 계산
-            score = rmse( y, model.predict(X))
-    elif model_name == 'LGBM':
-        param = {}
-        if model_kind == 'clf':
-            model = LGBMClassifier(**param)
-            lightgbm_model = model.fit(X, y, early_stopping_rounds=100, verbose=False)
-            ## RMSE으로 Loss 계산
-            score = rmse( y,lightgbm_model.predict(X).squeeze(1))
-        elif model_kind == 'reg':
-            model = LGBMRegressor(**param)
-            lightgbm_model = model.fit(X, y, early_stopping_rounds=100, verbose=False)
-            ## RMSE으로 Loss 계산
-            score = rmse( y,lightgbm_model.predict(X))
+file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)) , 'config.json')
+params_dict = {}
 
+with open(file_path, 'r') as file:
+    params_dict = json.load(file)
 
-    return score
+class BoostingModel:
+    """
+    [주의] 모델마다 train, predict 동작이 바뀌어야 하는 경우, class 도 나뉘어야 한다.
+    [주의] CatBoostRegressor, XGBoostRegressor, LGBMRegressor 의 경우 train 과 predict 에 별 다른 동작이 없기 때문에 그냥 합쳐 둔다. 
+    """
+    def __init__(self, args, data):
+
+        super().__init__()
+
+        self.criterion = RMSELoss()
+        self.model_name = args.MODEL
+        self.data = data
+
+        self.my_model = CatBoostRegressor
+
+        if( "LightGBMRegressor" == self.model_name ):
+            print("[INFO] Let's go LGBMRegressor ! ")
+            self.my_model = LGBMRegressor
+        elif( "XGBRegressor" == self.model_name ): 
+            print("[INFO] Let's go XGBRegressor ! ")
+            self.my_model = XGBRegressor
+        elif( "CatBoostRegressor"== self.model_name ): 
+            print("[INFO] Let's go CatBoostRegressor ! ")
+            self.my_model = CatBoostRegressor
+        else :
+            print("[WARN] Use Default Model ") 
+
+        self.best_params = do_optuna( self.data,
+                   model = self.my_model,
+                   model_name =  args.MODEL,
+                   early_stopping_rounds = 35,
+                   verbose = 100) if args.DO_OPTUNA == True else params_dict[args.MODEL]
+        
+        if( "CatBoostRegressor"== self.model_name ): 
+            self.best_params['cat_features'] =self.data['cat_features']
+
+    def train(self):
+
+        self.my_model = self.my_model(**self.best_params)
+        if( "CatBoostRegressor"== self.model_name ): 
+            cur_predict_model.fit(X_train,y_train, eval_set=(X_valid, y_valid))
+        else:
+            cur_predict_model.fit(X_train,y_train)
+
+        self.my_model.fit(self.data['X_train'],self.data['y_train'])
+        preds = self.my_model.predict(self.data['X_valid'])
+        preds = preds.squeeze(1) if 'Classifier' in self.model_name else preds
+        
+        print('RMSE : ', rmse(self.data['y_valid'], preds)) # Regressor
+        # print('RMSE : ', rmse(self.data['y_valid'], preds.squeeze(1))) # Classifier
+        #print('epoch:', epoch, 'validation: rmse:', rmse_score)
+
+    def predict(self):
+
+        preds = self.my_model.predict(self.data['test'])
+        return preds
 
 class CatBoostingModel:
     def __init__(self, args, data):
@@ -99,48 +88,27 @@ class CatBoostingModel:
         self.catmodels = {}
         self.data = data
 
-        # # direction : score 값을 최대 또는 최소로 하는 방향으로 지정 
-        # study = optuna.create_study(direction='minimize',sampler=TPESampler())      
-        # # n_trials : 시도 횟수 (미 입력시 Key interrupt가 있을 때까지 무한 반복)
-        # study.optimize(lambda trial : objective(trial, self.data['train'].drop('rating',axis=1), self.data['train']['rating']), n_trials=50)
-        # print('Best trial: score {},\nparams {}'.format(study.best_trial.value,study.best_trial.params))        
-        
-        # self.best_params = study.best_params
-        # try:
-        #     # 하이퍼파라미터별 중요도를 확인할 수 있는 그래프
-        #     optuna.visualization.plot_param_importances(study)      
-        #     # 하이퍼파라미터 최적화 과정을 확인
-        #     optuna.visualization.plot_optimization_history(study)
-        # except:
-        #     pass    
+        target_model = CatBoostRegressor
+
+        self.best_params = do_optuna( self.data,
+                   model = target_model,
+                   model_name = 'CatBoostRegressor',
+                   early_stopping_rounds = 35,
+                   verbose = 100) if args.DO_OPTUNA == True else params_dict['CatBoostRegressor']
+
+        self.best_params['cat_features'] =self.data['cat_features']
 
     def train(self):
         print(self.data['folds'])
         for fold in range(8):
             print(f'===================================={fold+1}============================================')
             train_idx, valid_idx = self.data['folds'][fold]
-            X_train = self.data['train'].drop(['rating'],axis=1).iloc[train_idx].values 
-            X_valid = self.data['train'].drop(['rating'],axis=1).iloc[valid_idx].values
-            y_train = self.data['train']['rating'][train_idx].values
-            y_valid = self.data['train']['rating'][valid_idx].values
+            X_train = self.data['train'].drop(['rating'],axis=1).iloc[train_idx] 
+            X_valid = self.data['train'].drop(['rating'],axis=1).iloc[valid_idx]
+            y_train = self.data['train']['rating'][train_idx]
+            y_valid = self.data['train']['rating'][valid_idx]
 
-            cat = CatBoostRegressor( learning_rate= 0.048, 
-                                    depth= 15,
-                                    l2_leaf_reg= 1.5,
-                                    min_child_samples= 1,
-                                    eval_metric = 'RMSE',
-                                    bootstrap_type = 'Bernoulli',
-                                    iterations = 10000,
-                                    grow_policy = 'Depthwise',
-                                    use_best_model = True,
-                                    od_type = 'Iter',
-                                    od_wait = 20,
-                                    random_state = 42,
-                                    )
-
-            # cat = CatBoostRegressor( **self.best_params,
-            #                         random_state = 42
-            #                         )
+            cat = CatBoostRegressor( **self.best_params)
             cat.fit(X_train,y_train, eval_set=(X_valid, y_valid))
             self.catmodels[fold] = cat 
             print(f'================================================================================\n\n')
@@ -154,7 +122,8 @@ class CatBoostingModel:
             preds += self.catmodels[fold].predict(self.data['test'])
         print(preds)
         return (preds/8).transpose()
-        
+
+
 class XGBModel:
 
     def __init__(self, args, data):
@@ -180,6 +149,15 @@ class XGBModel:
         # optuna.visualization.plot_optimization_history(study)
 
     def train(self):
+        X_train, X_valid, y_train, y_valid = train_test_split(
+                                                        self.data['train'].drop(['rating'], axis=1),
+                                                        self.data['train']['rating'],
+                                                        test_size=0.2,
+                                                        random_state=42,
+                                                        shuffle=True
+                                                        )
+        self.data['X_train'],  self.data['X_valid'],  self.data['y_train'],  self.data['y_valid'] = X_train, X_valid, y_train, y_valid
+
         self.model.fit(self.data['X_train'],self.data['y_train'])
         preds = self.model.predict(self.data['X_valid'])
         print('RMSE : ', rmse(self.data['y_valid'], preds)) # Regressor
@@ -198,7 +176,11 @@ class LGBMModel:
 
     def __init__(self, args, data):
         super().__init__()
-
+        self.best_params = do_optuna( self.data,
+                        model = self.my_model,
+                        model_name =  args.MODEL,
+                        early_stopping_rounds = 35,
+                        verbose = 100) if args.DO_OPTUNA == True else params_dict[args.MODEL]
         self.criterion = RMSELoss()
         self.model =  LGBMRegressor(nthread=4,
                         n_estimators=1000,
@@ -213,24 +195,19 @@ class LGBMModel:
                         min_child_weight=32,
                         silent=-1,
                         verbose=-1)
-        # self.model =  LGBMClassifier( )
         self.data = data
 
-        # # direction : score 값을 최대 또는 최소로 하는 방향으로 지정 
-        # study = optuna.create_study(direction='minimize',sampler=TPESampler())
-
-        # # n_trials : 시도 횟수 (미 입력시 Key interrupt가 있을 때까지 무한 반복)
-        # study.optimize(lambda trial : objective(trial, self.data['X_train'], self.data['y_train'], 'LGBM', 'reg'), n_trials=50)
-        # # study.optimize(lambda trial : objective(trial, self.data['X_train'], self.data['y_train'], 'LGBM', 'clf'), n_trials=50)
-        # print('Best trial: score {},\nparams {}'.format(study.best_trial.value,study.best_trial.params))
-
-        # # 하이퍼파라미터별 중요도를 확인할 수 있는 그래프
-        # optuna.visualization.plot_param_importances(study)
-
-        # # 하이퍼파라미터 최적화 과정을 확인
-        # optuna.visualization.plot_optimization_history(study)
 
     def train(self):
+        X_train, X_valid, y_train, y_valid = train_test_split(
+                                                        self.data['train'].drop(['rating'], axis=1),
+                                                        self.data['train']['rating'],
+                                                        test_size=0.2,
+                                                        random_state=42,
+                                                        shuffle=True
+                                                        )
+        self.data['X_train'],  self.data['X_valid'],  self.data['y_train'],  self.data['y_valid'] = X_train, X_valid, y_train, y_valid
+
         self.model.fit(self.data['X_train'],self.data['y_train'])
         preds = self.model.predict(self.data['X_valid'])
         print('RMSE : ', rmse(self.data['y_valid'], preds)) # Regressor
@@ -240,10 +217,7 @@ class LGBMModel:
 
 
     def predict(self):
-        preds =np.zeros(self.data['test'].shape[0])  
-        for fold in range(8):
-            a = self.catmodels[fold].predict(self.data['test']).transpose()
-            preds += self.catmodels[fold].predict(self.data['test'])
+        preds = self.model.predict(self.data['test'])
         print(preds)
         return preds # Regressor
         # return preds.squeeze(1) # Classifier
