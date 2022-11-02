@@ -114,6 +114,16 @@ def process_context_data(users, books, ratings1, ratings2, b_preprocess_category
     train_df = process_year_of_publication(train_df)
     test_df = process_year_of_publication(test_df)
 
+    # SVD, CoClustering 값 채우기
+    print('before combine')
+    print(train_df.shape, test_df.shape, len(ratings1))
+    train_df, test_df = combine_features(ratings1, ratings2, train_df, test_df)
+    print('after combine')
+    print(train_df.shape, test_df.shape)
+    # print(train_df.head())
+    # print(ratings.head())
+    # print(ratings1.head())
+
     idx = {
         "loc_city2idx":loc_city2idx,
         "loc_state2idx":loc_state2idx,
@@ -156,11 +166,14 @@ def context_data_load(args):
 
     idx, context_train, context_test = process_context_data(users, books, train, test, True)
     # field_dims = np.array([len(user2idx), len(isbn2idx),
-    #                         7, 10, 1, 1, len(idx['loc_city2idx']), len(idx['loc_state2idx']), len(idx['loc_country2idx']),
+    #                         7, 10, 1, 1, 1, 1, len(idx['loc_city2idx']), len(idx['loc_state2idx']), len(idx['loc_country2idx']),
     #                         len(idx['category2idx']), len(idx['publisher2idx']), len(idx['language2idx']), len(idx['author2idx'])], dtype=np.uint32)
     field_dims = np.array([len(user2idx), len(isbn2idx),
-                            7, 10, len( context_train['author_common_cnt']), len(context_train['author_book_cnt']), len(idx['loc_country2idx']),len(idx['loc_state2idx']),len(idx['loc_city2idx']),
+                            7, 10, 1, 1, len(context_train['svd_rating'].unique()), len(context_train['coclu_rating'].unique()), len(idx['loc_city2idx']), len(idx['loc_state2idx']), len(idx['loc_country2idx']),
                             len(idx['category2idx']), len(idx['publisher2idx']), len(idx['language2idx']), len(idx['author2idx'])], dtype=np.uint32)
+    # field_dims = np.array([len(user2idx), len(isbn2idx),
+    #                         7, 10, len( context_train['author_common_cnt']), len(context_train['author_book_cnt']), len(idx['loc_country2idx']),len(idx['loc_state2idx']),len(idx['loc_city2idx']),
+    #                         len(idx['category2idx']), len(idx['publisher2idx']), len(idx['language2idx']), len(idx['author2idx'])], dtype=np.uint32)
 
     data = {
             'train':context_train,

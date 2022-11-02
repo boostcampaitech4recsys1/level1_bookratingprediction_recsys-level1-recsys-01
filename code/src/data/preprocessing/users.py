@@ -104,12 +104,12 @@ def process_age( target_data : pd.DataFrame,  how : object = 'mean') -> pd.DataF
 
     return target_data
 
-# gu 작가별 단골 추가
-def add_regular_custom_by_author( target_data:pd.DataFrame)->pd.DataFrame:  
+# gu 단골 추가
+def add_regular_custom( target_data:pd.DataFrame, col:str)->pd.DataFrame:  
 
-    common = target_data.groupby(['book_author', 'user_id'])[['rating']].count()
-    author_common = common[common['rating']>2].groupby('book_author').count().sort_values('rating', ascending=False).rename(columns={'rating': 'author_common_cnt'}).reset_index()
-    target_data = target_data.merge(author_common, on='book_author', how='left')
-    target_data['author_common_cnt'].fillna(0, inplace=True)
+    common = target_data.groupby([col, 'user_id'])[['rating']].count()
+    common_count = common[common['rating']>2].groupby(col).count().sort_values('rating', ascending=False).rename(columns={'rating': col + '_common_cnt'}).reset_index()
+    target_data = target_data.merge(common_count, on=col, how='left')
+    target_data[col + '_common_cnt'].fillna(0, inplace=True)
 
     return target_data

@@ -1,3 +1,4 @@
+from turtle import shape, shearfactor
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split,StratifiedKFold
@@ -63,6 +64,9 @@ def process_boosting_data(users, books, ratings1, ratings2):
     # year of publication 추가
     books = process_year_of_publication(books)
 
+    # 나이 범주화 및 결측치 채우기
+    users = process_age( users , 'mean' )
+
     # book_rating_df = ratings1.merge(books[['isbn', 'book_author', 'book_title']], on='isbn', how='left')
     # book_rating_info = book_rating_df.groupby(["book_author","book_title"])['rating'].agg(['count','mean'])
     # book_rating_info.columns = ['rated_count','rating_mean']
@@ -96,12 +100,20 @@ def process_boosting_data(users, books, ratings1, ratings2):
     test_df = preprocess_category(test_df)
 
     # 작가별 단골 
-    train_df = add_regular_custom_by_author(train_df)
-    test_df = add_regular_custom_by_author(test_df)
+    train_df = add_regular_custom(train_df, 'book_author')
+    test_df = add_regular_custom(test_df, 'book_author')
 
-    # 나이 범주화 및 결측치 채우기
-    train_df = process_age( train_df , 'mean' )
-    test_df = process_age( test_df , 'mean' )
+    # 출판사별 단골 
+    train_df = add_regular_custom(train_df, 'publisher')
+    test_df = add_regular_custom(test_df, 'publisher')
+
+    # # 나이 범주화 및 결측치 채우기 >> merge 전으로 이동
+    # train_df = process_age( train_df , 'mean' )
+    # test_df = process_age( test_df , 'mean' )
+
+    # age and year of publication 갭 추가
+    train_df['age_pub_gap'] = train_df['year_of_publication'] - train_df['age'] + 10  # 음수 제거용
+    test_df['age_pub_gap'] = test_df['year_of_publication'] - test_df['age'] + 10  # 음수 제거용
 
     ############### 임시 결측치 처리 코드 ######################
     train_df['language'] = train_df['language'].fillna('en')
@@ -121,6 +133,16 @@ def process_boosting_data(users, books, ratings1, ratings2):
     test_df['location_state'].fillna('other',inplace=True) 
     test_df['location_city'].fillna('other',inplace=True)
     ###########################################################
+
+    # # SVD, CoClustering 값 채우기
+    # print('before combine')
+    # print(train_df.shape, test_df.shape, len(ratings1))
+    # train_df, test_df = combine_features(ratings1, ratings2, train_df, test_df)
+    # print('after combine')
+    # print(train_df.shape, test_df.shape)
+    # # print(train_df.head())
+    # # print(ratings.head())
+    # # print(ratings1.head())
 
     return whole_df,train_df, test_df
 
@@ -198,6 +220,8 @@ def boosting_data_load(args):
 
     whole,boosting_train, boosting_test = process_boosting_data(users, books, train, test)
     cur_cat_features , train, test = after_preprocessing(args,boosting_train,boosting_test,whole)
+    print(boosting_train.head())
+    print(boosting_train.columns)
 
     data = {
             'train':boosting_train,

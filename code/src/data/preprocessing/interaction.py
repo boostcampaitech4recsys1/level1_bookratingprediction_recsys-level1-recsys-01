@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 
 from surprise import Dataset, Reader, accuracy, SVD, KNNBasic, CoClustering
 from surprise.dataset import DatasetAutoFolds
@@ -6,20 +7,19 @@ from surprise.dataset import DatasetAutoFolds
 from pandas.api.types import CategoricalDtype
 from scipy import sparse
 
-def combine_features(ratings, X_train, X_test):
+def combine_features(ratings1, ratings2, X_train, X_test):
     # make interactions
-    size_uid = ratings["user_id"].unique()
-    size_iid = ratings["isbn"].unique()
-
+    size_uid = ratings1["user_id"].unique()
+    size_iid = ratings1["isbn"].unique()
     ui_shape = (len(size_uid), len(size_iid))
 
     user_cat = CategoricalDtype(categories=sorted(size_uid), ordered=True)
     book_cat = CategoricalDtype(categories=sorted(size_iid), ordered=True)
 
-    user_index = ratings["user_id"].astype(user_cat).cat.codes
-    book_index = ratings["isbn"].astype(book_cat).cat.codes
+    user_index = ratings1["user_id"].astype(user_cat).cat.codes
+    book_index = ratings1["isbn"].astype(book_cat).cat.codes
 
-    interactions = sparse.coo_matrix((ratings["rating"], (user_index,book_index)), shape=ui_shape)
+    interactions = sparse.coo_matrix((ratings1["rating"], (user_index,book_index)), shape=ui_shape)
     
     # ratings > train, test split
     uids, iids, data = shuffle_data(interactions)
@@ -34,22 +34,40 @@ def combine_features(ratings, X_train, X_test):
     trainset = fold.build_full_trainset()
     
     # SVD
-    svd = SVD(trainset)
+    params = {'n_factors':100,
+            'n_epochs':20,
+            'lr_all':0.005,
+            'reg_all':0.02}
+
+    svd = SVD(**params,random_state=42)
+    svd.fit(trainset)
     svd_test = svd.test(list(zip(test_df['uid'], test_df['iid'], test_df['ratings'])))
-    svd_pred = list(map(lambda x:x.est, svd_test))
+    svd_pred = list(map(lambda x:round(x.est), svd_test))
+    print(f"RMSE of svd : {round(rmse(test_df['ratings'], svd_pred),4)}")
 
     # co-clustering
-    coclu = CoClustering(trainset)
+    params = {'n_cltr_u':10,
+            'n_cltr_i':10, 
+            'n_epochs':20}
+
+    coclu = CoClustering(**params, random_state=42, verbose=False)
+    coclu.fit(trainset)
     coclu_test = coclu.test(list(zip(test_df['uid'], test_df['iid'], test_df['ratings'])))
     coclu_pred = list(map(lambda x:round(x.est), coclu_test))
+    print(f"RMSE of coclu : {round(rmse(test_df['ratings'], coclu_pred),4)}")
 
     # add column
-    train_uir_tuple = list(zip(train_df['uid'], train_df['iid'], train_df['ratings']))
+    train_uir_tuple = list(zip(X_train['user_id'], X_train['isbn'], ratings1['rating']))
+    test_uir_tuple = list(zip(X_test['user_id'], X_test['isbn'], ratings2['rating']))
+    # print(X_train.shape, ratings1.shape)
+    # print(X_test.shape, ratings2.shape)
+    # print(len(train_uir_tuple), train_uir_tuple[0])
+    # print(len(test_uir_tuple), test_uir_tuple[0])
 
-    X_train['svd_rating'] = list(map(lambda x:x.est, svd.test(train_uir_tuple)))
-    X_test['svd_rating'] = svd_pred
-    X_train['coclu_rating'] = list(map(lambda x:x.est, coclu.test(train_uir_tuple)))
-    X_test['coclu_rating'] = coclu_pred
+    X_train['svd_rating'] = list(map(lambda x:round(x.est), svd.test(train_uir_tuple)))
+    X_test['svd_rating'] = list(map(lambda x:round(x.est), svd.test(test_uir_tuple)))
+    X_train['coclu_rating'] = list(map(lambda x:round(x.est), coclu.test(train_uir_tuple)))
+    X_test['coclu_rating'] = list(map(lambda x:round(x.est), coclu.test(test_uir_tuple)))
 
     return X_train, X_test
 
@@ -78,27 +96,8 @@ def cutoff_by_user(uids:list, test_percentage:float=0.2):
     return train_idx, test_idx
     
 
-def SVD(trainset):
-    params = {'n_factors':100,
-            'n_epochs':20,
-            'lr_all':0.005,
-            'reg_all':0.02}
-
-    svd = SVD(**params,random_state=42)
-    svd.fit(trainset)
-
-    return svd
-
-
-def CoClusting(trainset):
-    params = {'n_cltr_u':10,
-            'n_cltr_i':10, 
-            'n_epochs':20}
-
-    coclu = CoClustering(**params, random_state=42, verbose=True)
-    coclu.fit(trainset)
-
-    return coclu
+def rmse(real, predict):
+  return np.sqrt(np.mean((real - np.array(predict)) ** 2))
 
 
 def check_sparsity(interactions:sparse.coo_matrix)->int:
