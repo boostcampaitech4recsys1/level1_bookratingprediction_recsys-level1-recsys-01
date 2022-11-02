@@ -11,7 +11,6 @@ def get_rating_average(submission:pd.DataFrame, process_level:int )->pd.DataFram
     books_rating_info.columns = ['books_mean']
     books_rating_info = books.merge(books_rating_info,on=['book_title','book_author'],how='left')
     books_rating_info = books_rating_info[['isbn','books_mean']]
-    books_rating_info['books_mean'] = books_rating_info['books_mean'].fillna(books_rating_info['books_mean'].mean()) # 결측치 평균으로 채움
     
     #유저 평균 평점
     users_rating_info = rating_df.groupby(["user_id"])['rating'].agg(['mean'])
@@ -20,6 +19,8 @@ def get_rating_average(submission:pd.DataFrame, process_level:int )->pd.DataFram
     
     #merge
     rating_avg = submission.merge(books_rating_info,on=['isbn'],how='left').merge(users_rating_info,on='user_id',how='left')
+    rating_avg['books_mean'] = rating_avg['books_mean'].fillna(books_rating_info['books_mean'].mean())
+    rating_avg['users_mean'] = rating_avg['users_mean'].fillna(users_rating_info['users_mean'].mean())
     
     # 평균 연산
     
