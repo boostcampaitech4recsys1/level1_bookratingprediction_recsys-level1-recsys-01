@@ -66,7 +66,8 @@ class BoostingModel:
             self.my_model.fit(self.data['X_train'],self.data['y_train'],\
                               eval_set=(self.data['X_valid'],self.data['y_valid']))
         else:
-            self.my_model.fit(self.data['X_train'],self.data['y_train'])
+            self.my_model.fit(self.data['X_train'],self.data['y_train'],\
+                              eval_set=[(self.data['X_train'],self.data['y_train']),(self.data['X_valid'],self.data['y_valid'])])
 
         preds = self.my_model.predict(self.data['X_valid'])
         preds = preds.squeeze(1) if 'Classifier' in self.model_name else preds
