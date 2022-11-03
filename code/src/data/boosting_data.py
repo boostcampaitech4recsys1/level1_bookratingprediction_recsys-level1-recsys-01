@@ -34,7 +34,7 @@ def process_boosting_data(users, books, ratings1, ratings2):
     # age 관련 처리 : 86세 이상의 데이터는 버림 처리 
     users = remove_outlier_by_age(users,85)
     # location 처리 : country 이상 데이터 통합 ( us, england 만 처리됨 )
-    users = process_location( target_data = users, process_level = 3 )
+    users = process_location_v2( target_data = users, process_level = 3 )
     ##########################################################################
 
     ######################## books 전처리 #####################################
@@ -124,6 +124,7 @@ def process_boosting_data(users, books, ratings1, ratings2):
     train_df['location_state'].fillna('other',inplace=True) 
     train_df['location_city'].fillna('other',inplace=True)
     train_df['age'].fillna(4,inplace=True)
+    train_df['location'].fillna('na,na,na',inplace=True)
 
     test_df['language'] = test_df['language'].fillna('en')
     test_df['publisher'] = test_df['publisher'].fillna(('ohters'))
@@ -132,6 +133,7 @@ def process_boosting_data(users, books, ratings1, ratings2):
     test_df['location_country'].fillna('other',inplace=True)
     test_df['location_state'].fillna('other',inplace=True) 
     test_df['location_city'].fillna('other',inplace=True)
+    test_df['location'].fillna('na,na,na',inplace=True)
     ###########################################################
 
     # # SVD, CoClustering 값 채우기
@@ -157,6 +159,7 @@ def after_preprocessing(args, train, test, whole_df):
         loc_country2idx = {v:k for k,v in enumerate(whole_df['location_country'].unique())}
         loc_state2idx = {v:k for k,v in enumerate(whole_df['location_state'].unique())}
         loc_city2idx = {v:k for k,v in enumerate(whole_df['location_city'].unique())}
+        loc2idx = {v:k for k,v in enumerate(whole_df['location'].unique())}
     
         train['location_country'] = train['location_country'].map(loc_country2idx)
         test['location_country'] = test['location_country'].map(loc_country2idx)
@@ -164,6 +167,8 @@ def after_preprocessing(args, train, test, whole_df):
         test['location_state'] = test['location_state'].map(loc_state2idx)
         train['location_city'] = train['location_city'].map(loc_city2idx)
         test['location_city'] = test['location_city'].map(loc_city2idx)
+        train['location'] = train['location'].map(loc2idx)
+        test['location'] = test['location'].map(loc2idx)
 
         train['publisher'] = get_cnt_series_by_column(train,'publisher','isbn')
         test['publisher'] = get_cnt_series_by_column(test,'publisher','isbn')
