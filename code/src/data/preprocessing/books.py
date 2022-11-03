@@ -58,3 +58,10 @@ def process_year_of_publication(target_data : pd.DataFrame )->pd.DataFrame :
     target_data['year_of_publication'] = get_apply_map_series(target_data,'year_of_publication',publish_year_map)
     return target_data 
 
+def process_series(target_data : pd.DataFrame )->pd.DataFrame :
+    series = target_data.groupby(['book_author', 'publisher', 'category'])[['book_title']].count().rename(columns={'book_title': 'series_cnt'}).reset_index()
+    series = series[series['series_cnt'] > 1]
+    series['series'] = series['book_author'].astype(str)+'-'+series['publisher'].astype(str)+'-'+series['category'].astype(str)
+    target_data = target_data.merge(series, on=['book_author', 'publisher', 'category'], how='left')
+    target_data['series'].fillna('others', inplace=True)
+    return target_data

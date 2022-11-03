@@ -45,20 +45,27 @@ def process_context_data(users, books, ratings1, ratings2, b_preprocess_category
     # [주의] train, test data 분리 후 2명 이상 평가한 author count 를 추가한다.
 
     # ===================== 2-4. category
-    # gu: category 전처리
     books['category'] = books['category'].fillna('fiction')
+
+    # category 전처리 위치 이동
+    books = preprocess_category(books)
+    books = map_category_with_ranking(books)
+
+    # 시리즈 추가(author-publisher-category): 카테고리 전처리 후에 진행
+    books = process_series(books)
 
     # year of publication 추가
     books = process_year_of_publication(books)
+
 
     # ===================== 3. merge and indexing =====================
     # ===================== 3-1. merge
     ratings = pd.concat([ratings1, ratings2]).reset_index(drop=True)
 
     # 인덱싱 처리된 데이터 조인
-    context_df = ratings.merge(users, on='user_id', how='left').merge(books[['isbn', 'category', 'publisher', 'language', 'book_author', 'year_of_publication']], on='isbn', how='left')
-    train_df = ratings1.merge(users, on='user_id', how='left').merge(books[['isbn', 'category', 'publisher', 'language', 'book_author', 'year_of_publication']], on='isbn', how='left')
-    test_df = ratings2.merge(users, on='user_id', how='left').merge(books[['isbn', 'category', 'publisher', 'language', 'book_author', 'year_of_publication']], on='isbn', how='left')
+    context_df = ratings.merge(users, on='user_id', how='left').merge(books[['isbn', 'category', 'publisher', 'language', 'book_author', 'year_of_publication', 'series']], on='isbn', how='left')
+    train_df = ratings1.merge(users, on='user_id', how='left').merge(books[['isbn', 'category', 'publisher', 'language', 'book_author', 'year_of_publication', 'series']], on='isbn', how='left')
+    test_df = ratings2.merge(users, on='user_id', how='left').merge(books[['isbn', 'category', 'publisher', 'language', 'book_author', 'year_of_publication', 'series']], on='isbn', how='left')
 
     # ===================== 3-2. users columns 인덱싱처리
     loc_city2idx = {v:k for k,v in enumerate(context_df['location_city'].unique())}
@@ -75,9 +82,9 @@ def process_context_data(users, books, ratings1, ratings2, b_preprocess_category
     # ===================== 3-3. book author/publisher preprocessing after merge
     # gu book_author/publiser 변수 추가
     # 1) 작가별 출판 책 수 추가
-    author_cnt = books.groupby('book_author')[['isbn']].agg('count').sort_values(by='isbn', ascending=False).rename(columns={'isbn': 'author_book_cnt'}).reset_index()
-    train_df = train_df.merge(author_cnt, on='book_author', how='left')
-    test_df = test_df.merge(author_cnt, on='book_author', how='left')
+    # author_cnt = books.groupby('book_author')[['isbn']].agg('count').sort_values(by='isbn', ascending=False).rename(columns={'isbn': 'author_book_cnt'}).reset_index()
+    # train_df = train_df.merge(author_cnt, on='book_author', how='left')
+    # test_df = test_df.merge(author_cnt, on='book_author', how='left')
     # 2) 작가별 단골 추가
     train_df = add_regular_custom(train_df, 'book_author')
     test_df = add_regular_custom(test_df, 'book_author')
@@ -95,23 +102,26 @@ def process_context_data(users, books, ratings1, ratings2, b_preprocess_category
     language2idx = {v:k for k,v in enumerate(context_df['language'].unique())}
     author2idx = {v:k for k,v in enumerate(context_df['book_author'].unique())}
     category2idx = {v:k for k,v in enumerate(context_df['category'].unique())}
+    series2idx = {v:k for k,v in enumerate(context_df['series'].unique())}
 
     if( False == b_preprocess_category ):
         train_df['category'] = train_df['category'].map(category2idx)
         test_df['category'] = test_df['category'].map(category2idx)
-    else:
-        train_df = preprocess_category(train_df)
-        train_df = map_category_with_ranking(train_df)
-        test_df = preprocess_category(test_df)
-        test_df = map_category_with_ranking(test_df)
+    # else:
+    #     train_df = preprocess_category(train_df)
+    #     train_df = map_category_with_ranking(train_df)
+    #     test_df = preprocess_category(test_df)
+    #     test_df = map_category_with_ranking(test_df)
 
     train_df['publisher'] = train_df['publisher'].map(publisher2idx)
     train_df['language'] = train_df['language'].map(language2idx)
     train_df['book_author'] = train_df['book_author'].map(author2idx)
+    train_df['series'] = train_df['series'].map(series2idx)
 
     test_df['publisher'] = test_df['publisher'].map(publisher2idx)
     test_df['language'] = test_df['language'].map(language2idx)
     test_df['book_author'] = test_df['book_author'].map(author2idx)
+    test_df['series'] = test_df['series'].map(series2idx)
 
     # # gu: year of publication 추가
     # train_df = process_year_of_publication(train_df)
@@ -135,6 +145,7 @@ def process_context_data(users, books, ratings1, ratings2, b_preprocess_category
         "publisher2idx":publisher2idx,
         "language2idx":language2idx,
         "author2idx":author2idx,
+        "series2idx":series2idx,
     }
 
     return idx, train_df, test_df
@@ -176,11 +187,12 @@ def context_data_load(args):
     # 4: book_author_common_cnt, 
     # 5: publisher_common_cnt, 
     # age-pub gap
-    field_dims = np.array([len(user2idx), len(isbn2idx), 7, 10, 
-                            len(context_train['author_book_cnt'].unique()), 
-                            4, 5, len(context_train['age_pub_gap'].unique()), 
-                            len(idx['loc_city2idx']), len(idx['loc_state2idx']), len(idx['loc_country2idx']),
-                            len(idx['category2idx']), len(idx['publisher2idx']), len(idx['language2idx']), len(idx['author2idx'])], dtype=np.uint32)
+    # series
+    field_dims = np.array([len(user2idx), len(isbn2idx), 7,
+                            len(idx['loc_country2idx']), len(idx['loc_state2idx']), len(idx['loc_city2idx']),
+                            len(idx['category2idx']), len(idx['publisher2idx']), len(idx['language2idx']), len(idx['author2idx']),
+                            10, len(idx['series2idx']), len(context_train['book_author_common_cnt'].unique()), len(context_train['publisher_common_cnt'].unique()), len(context_train['age_pub_gap'].unique())], dtype=np.uint32)
+    print(field_dims)
     # field_dims = np.array([len(user2idx), len(isbn2idx),
     #                         7, 10, len( context_train['author_common_cnt']), len(context_train['author_book_cnt']), len(idx['loc_country2idx']),len(idx['loc_state2idx']),len(idx['loc_city2idx']),
     #                         len(idx['category2idx']), len(idx['publisher2idx']), len(idx['language2idx']), len(idx['author2idx'])], dtype=np.uint32)
