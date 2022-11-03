@@ -10,7 +10,7 @@
     "LightGBMRegressor" : {
         "n_jobs"           : 4,
         "n_estimators"     : 1000,
-        "learning_rate"    : 0.130372 ,
+        "learning_rate"    : 0.048,
         "num_leaves"       : 60,
         "colsample_bytree" : 0.94,
         "subsample"        : 0.87,
