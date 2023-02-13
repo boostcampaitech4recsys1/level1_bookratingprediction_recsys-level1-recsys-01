@@ -14,6 +14,37 @@ print(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 from .preprocessing import *
 from sklearn.preprocessing import OrdinalEncoder
 
+
+############################################################
+# TF-IDF 시도 
+############################################################
+from textblob import TextBlob
+import nltk 
+nltk.download('stopwords')
+
+from nltk.corpus import stopwords
+
+from nltk.stem.snowball import RussianStemmer
+from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
+
+nltk.download('stopwords')
+
+MAX_TFIDF_FEATURES = 2000
+stop_words = stopwords.words('russian')
+rs = RussianStemmer()
+
+def tfidf_vectorize(series, max_features):
+    vectorizer = TfidfVectorizer(max_features=max_features, stop_words=stop_words)
+    return np.array(vectorizer.fit_transform(series).todense(), dtype=np.float16)
+
+def feature_engineering(df):
+    txt_vectors = tfidf_vectorize(df['concat_txt'], MAX_TFIDF_FEATURES)
+
+    for i in range(MAX_TFIDF_FEATURES):
+        df.loc[:, 'concat_txt_tfidf_' + str(i)] = txt_vectors[:, i]
+    df.drop("concat_txt", axis = 1, inplace = True)
+    return df
+
 def process_boosting_data(users, books, ratings1, ratings2):
     """
     해당 함수에서는 결측치 처리 및 전처리만 한다.
@@ -82,11 +113,41 @@ def process_boosting_data(users, books, ratings1, ratings2):
     # books['rating_mean'] = books['rating_mean'].apply(lambda x: int(x))
     ##########################################################################
 
+    ############################################################
+    # TF-IDF 시도 
+    # text preparation
+    books["summary"].fillna("",inplace=True)
+    books["concat_txt"] = books["book_title"].str.cat(books["summary"],sep=' ') 
+    print(books[books["book_title"].isna()])
+    print(books[books["concat_txt"].isna()])
+    print(books[books['isbn']==129774]['summary'])
+    # lower everything
+    books["concat_txt"] = books["concat_txt"].str.lower() 
+    # remove punctuation
+    books["concat_txt"] = books["concat_txt"].str.replace('[^\w\s]',' ')
+
+    # remove stopwords
+    books["concat_txt"] = books["concat_txt"].apply(lambda x: " ".join(x for x in x.split() if x not in stop_words))
+
+    # books["book_author"].fillna("",inplace=True)
+    # books["concat_txt"] = books["book_title"].str.cat(books["book_author"],sep=' ') 
+    # print(books[books["book_title"].isna()])
+    # print(books[books["concat_txt"].isna()])
+    # print(books[books['isbn']==129774]['summary'])
+    # # lower everything
+    # books["concat_txt"] = books["concat_txt"].str.lower() 
+    # # remove punctuation
+    # books["concat_txt"] = books["concat_txt"].str.replace('[^\w\s]',' ')
+
+    # # remove stopwords
+    # books["concat_txt"] = books["concat_txt"].apply(lambda x: " ".join(x for x in x.split() if x not in stop_words))
+    ############################################################
+
     # 인덱싱 처리된 데이터 조인
     ratings = pd.concat([ratings1, ratings2]).reset_index(drop=True)
-    whole_df = ratings.merge(users, on='user_id', how='left').merge(books[['isbn', 'category', 'publisher', 'language', 'book_author', 'year_of_publication', 'series']], on='isbn', how='left')
-    train_df = ratings1.merge(users, on='user_id', how='left').merge(books[['isbn', 'category', 'publisher', 'language', 'book_author', 'year_of_publication', 'series']], on='isbn', how='left')
-    test_df = ratings2.merge(users, on='user_id', how='left').merge(books[['isbn', 'category', 'publisher', 'language', 'book_author', 'year_of_publication', 'series']], on='isbn', how='left')
+    whole_df = ratings.merge(users, on='user_id', how='left').merge(books[['concat_txt','isbn', 'category', 'publisher', 'language', 'book_author', 'year_of_publication', 'series']], on='isbn', how='left')
+    train_df = ratings1.merge(users, on='user_id', how='left').merge(books[['concat_txt','isbn', 'category', 'publisher', 'language', 'book_author', 'year_of_publication', 'series']], on='isbn', how='left')
+    test_df = ratings2.merge(users, on='user_id', how='left').merge(books[['concat_txt','isbn', 'category', 'publisher', 'language', 'book_author', 'year_of_publication', 'series']], on='isbn', how='left')
 
     # 인덱싱 처리
     """
@@ -123,43 +184,57 @@ def process_boosting_data(users, books, ratings1, ratings2):
 
     ############### 임시 결측치 처리 코드 ######################
     train_df['language'] = train_df['language'].fillna('en')
-    train_df['publisher'] = train_df['publisher'].fillna(('ohters'))
+    train_df['publisher'] = train_df['publisher'].fillna(('others'))
     train_df['category'] = train_df['category'].fillna('fiction')
-    train_df['book_author'] = train_df['book_author'].fillna('ohters')
-    train_df['location_country'].fillna('other',inplace=True)
-    train_df['location_state'].fillna('other',inplace=True) 
-    train_df['location_city'].fillna('other',inplace=True)
+    train_df['book_author'] = train_df['book_author'].fillna('others')
+    train_df['location_country'].fillna('na',inplace=True)
+    train_df['location_state'].fillna('na',inplace=True) 
+    train_df['location_city'].fillna('na',inplace=True)
     train_df['age'].fillna(4,inplace=True)
     train_df['location'].fillna('na,na,na',inplace=True)
 
     test_df['language'] = test_df['language'].fillna('en')
-    test_df['publisher'] = test_df['publisher'].fillna(('ohters'))
+    test_df['publisher'] = test_df['publisher'].fillna(('others'))
     test_df['category'] = test_df['category'].fillna('fiction')
-    test_df['book_author'] = test_df['book_author'].fillna('ohters')
-    test_df['location_country'].fillna('other',inplace=True)
-    test_df['location_state'].fillna('other',inplace=True) 
-    test_df['location_city'].fillna('other',inplace=True)
+    test_df['book_author'] = test_df['book_author'].fillna('others')
+    test_df['location_country'].fillna('na',inplace=True)
+    test_df['location_state'].fillna('na',inplace=True) 
+    test_df['location_city'].fillna('na',inplace=True)
+    test_df['age'].fillna(4,inplace=True)
     test_df['location'].fillna('na,na,na',inplace=True)
     ###########################################################
 
-    # # SVD, CoClustering 값 채우기
-    # print('before combine')
-    # print(train_df.shape, test_df.shape, len(ratings1))
-    # train_df, test_df = combine_features(ratings1, ratings2, train_df, test_df)
-    # print('after combine')
-    # print(train_df.shape, test_df.shape)
-    # # print(train_df.head())
-    # # print(ratings.head())
-    # # print(ratings1.head())
-
+    train_df = feature_engineering(train_df)
+    test_df = feature_engineering(test_df)
+    
     return whole_df,train_df, test_df
 
 def after_preprocessing(args, train, test, whole_df):
     
     # todo preprocess mode 에 따라 변경해도 좋을 것같다.
     if( 'CatBoost' in args.MODEL ):
-        pass
 
+        pass
+        # like_books = train.groupby(['user_id'])['book_author','publisher'].value_counts().sort_values(ascending = False).reset_index()
+        # like_books.columns = ['user_id','book_author', 'publisher','combine_like_book_cnt']
+        # like_books['combine_like_book'] = like_books['book_author'].str.cat(like_books['publisher'],sep=',')
+        # like_books.drop(['book_author','publisher'],axis=1, inplace = True )
+        # like_books.drop_duplicates(['user_id'],inplace = True)
+
+        # train= train.merge(like_books,on='user_id', how ='left')
+        # test= test.merge(like_books,on='user_id', how ='left')
+
+        # train['combine_like_book'].fillna("",inplace=True)
+        # test['combine_like_book'].fillna("",inplace=True)
+        # train['combine_like_book_cnt'].fillna(0,inplace=True)
+        # test['combine_like_book_cnt'].fillna(0,inplace=True)
+        # train['combine_like_book_cnt'] = train['combine_like_book_cnt'].astype('str')
+        # test['combine_like_book_cnt'] = test['combine_like_book_cnt'].astype('str')
+        
+        # train.drop(['location'],axis=1, inplace = True )
+        # test.drop(['location'],axis=1, inplace = True )
+        
+        pass 
     elif( 'XGB' in args.MODEL or 'LightGBM' in args.MODEL ):
 
         loc_country2idx = {v:k for k,v in enumerate(whole_df['location_country'].unique())}
@@ -167,6 +242,7 @@ def after_preprocessing(args, train, test, whole_df):
         loc_city2idx = {v:k for k,v in enumerate(whole_df['location_city'].unique())}
         loc2idx = {v:k for k,v in enumerate(whole_df['location'].unique())}
         series2idx = {v:k for k,v in enumerate(whole_df['series'].unique())}
+        title2idx = {v:k for k,v in enumerate(whole_df['book_title'].unique())}
     
         train['location_country'] = train['location_country'].map(loc_country2idx)
         test['location_country'] = test['location_country'].map(loc_country2idx)
@@ -178,7 +254,9 @@ def after_preprocessing(args, train, test, whole_df):
         test['location'] = test['location'].map(loc2idx)
         train['series'] = train['series'].map(series2idx)
         test['series'] = test['series'].map(series2idx)
-
+        train['book_title'] = train['book_title'].map(loc2idx)
+        test['book_title'] = test['book_title'].map(loc2idx)
+        
         train['publisher'] = get_cnt_series_by_column(train,'publisher','isbn')
         test['publisher'] = get_cnt_series_by_column(test,'publisher','isbn')
         train['book_author'] = get_cnt_series_by_column(train,'book_author','isbn')
@@ -238,8 +316,8 @@ def boosting_data_load(args):
     print(boosting_train.columns)
 
     data = {
-            'train':boosting_train,
-            'test':boosting_test.drop(['rating'], axis=1),
+            'train':train,
+            'test':test.drop(['rating'], axis=1),
             'users':users,
             'books':books,
             'sub':sub,
