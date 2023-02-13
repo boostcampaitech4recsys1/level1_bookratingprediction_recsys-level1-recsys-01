@@ -42,6 +42,32 @@ def country_map(x):
     else :
         return x
 
+def author_cnt_map(x: int) -> int:
+
+    x = int(x)
+    if x <= 5:
+        return 0
+    elif x <= 10:
+        return 1
+    elif x < 100:
+        return 2
+    else:
+        return 3
+
+def publisher_cnt_map(x: int) -> int:
+
+    x = int(x)
+    if x <= 5:
+        return 0
+    elif x <= 10:
+        return 1
+    elif x < 100:
+        return 2
+    elif x < 300:
+        return 3
+    else:
+        return 4
+
 def remove_outlier_by_age( target_data : pd.DataFrame, target_age:int)->pd.DataFrame:
     
     if 'age' not in target_data.columns:
@@ -93,6 +119,49 @@ def process_location( target_data : pd.DataFrame, process_level:int )->pd.DataFr
     target_data = target_data.drop(['location'], axis=1)
     return target_data
 
+# boosting model test 를 위한 임시 함수 
+def process_location_v2( target_data : pd.DataFrame, process_level:int )->pd.DataFrame:
+    
+    if 'location' not in target_data.columns:
+        raise Exception( '[preprocess_location] location column not in target_data')
+
+    level_map = { 1 : 'country' , 2 : 'state', 3:'city'}
+    # location 특수 문자 제거
+    basic_str = 'location_'
+    
+    # u['location_country'] = u['location'].apply(lambda x: x.split(',')[2] if len(x.split(','))==3 else x.split(',')[3] )
+    # u['location_state'] = u['location'].apply(lambda x: x.split(',')[1] if len(x.split(','))==3 else ( x.split(',')[1] if x.split(',')[2]=='' else x.split(',')[2] ))
+    # u['location_city'] = u['location'].apply(lambda x: x.split(',')[0])
+    
+    if process_level >= 1 : 
+        cur_str = basic_str + level_map[1]
+        # target_data[cur_str] = target_data['location'].apply(lambda x: x.split(',')[2])
+        target_data[cur_str] = target_data['location'].apply(lambda x: x.split(',')[2] if len(x.split(','))==3 else x.split(',')[3] )
+        target_data[cur_str] = target_data[cur_str].apply(country_map)
+        target_data[cur_str] = target_data[cur_str].apply(lambda x: re.sub('[^0-9a-zA-Z]','',x).strip())
+
+    if process_level >= 2 :
+        cur_str = basic_str + level_map[2]
+        # target_data[cur_str] = target_data['location'].apply(lambda x: x.split(',')[1])
+        target_data['location_state'] = target_data['location'].apply(lambda x: x.split(',')[1] if len(x.split(','))==3 else ( x.split(',')[1] if x.split(',')[2]=='' else x.split(',')[2] ))
+        target_data[cur_str] = target_data[cur_str].apply(lambda x: re.sub('[^0-9a-zA-Z]','',x).strip())
+        
+    
+    if process_level >= 3 :
+        cur_str = basic_str + level_map[3]
+        target_data[cur_str] = target_data['location'].apply(lambda x: x.split(',')[0])
+        target_data[cur_str] = target_data[cur_str].apply(lambda x: re.sub('[^0-9a-zA-Z]','',x).strip())
+        
+    country_unique = target_data['location_country'].unique().tolist()
+    for country in country_unique:
+        if target_data[target_data['location_country']==country].shape[0]< 5:
+            target_data.loc[target_data['location_country']==country,"location_country"] = 'Remove_Point'
+    target_data.drop(target_data[target_data['location_country']=='Remove_Point'].index,inplace=True)
+    # target_data.drop(target_data[target_data['location_country']==''].index,inplace=True)
+    
+    # target_data = target_data.drop(['location'], axis=1)
+    return target_data
+
 
 def process_age( target_data : pd.DataFrame,  how : object = 'mean') -> pd.DataFrame:
     """
@@ -112,12 +181,15 @@ def process_age( target_data : pd.DataFrame,  how : object = 'mean') -> pd.DataF
 
     return target_data
 
-# gu 작가별 단골 추가
-def add_regular_custom_by_author( target_data:pd.DataFrame)->pd.DataFrame:  
+# gu 단골 추가
+def add_regular_custom( target_data:pd.DataFrame, col:str)->pd.DataFrame:  
 
-    common = target_data.groupby(['book_author', 'user_id'])[['rating']].count()
-    author_common = common[common['rating']>2].groupby('book_author').count().sort_values('rating', ascending=False).rename(columns={'rating': 'author_common_cnt'}).reset_index()
-    target_data = target_data.merge(author_common, on='book_author', how='left')
-    target_data['author_common_cnt'].fillna(0, inplace=True)
-
+    common = target_data.groupby([col, 'user_id'])[['rating']].count()
+    common_count = common[common['rating']>2].groupby(col).count().sort_values('rating', ascending=False).rename(columns={'rating': col + '_common_cnt'}).reset_index()
+    target_data = target_data.merge(common_count, on=col, how='left')
+    target_data[col + '_common_cnt'].fillna(0, inplace=True)
+    if col == 'book_author':
+        target_data[col + '_common_cnt'] = get_apply_map_series(target_data,col + '_common_cnt',author_cnt_map)
+    elif col == 'publisher':
+        target_data[col + '_common_cnt'] = get_apply_map_series(target_data,col + '_common_cnt',publisher_cnt_map)
     return target_data

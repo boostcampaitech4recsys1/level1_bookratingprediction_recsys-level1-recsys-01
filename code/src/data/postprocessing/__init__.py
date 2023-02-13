@@ -1,0 +1,1 @@
+from .postprocessing import get_rating_average
