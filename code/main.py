@@ -11,10 +11,13 @@ from src.data import image_data_load, image_data_split, image_data_loader
 from src.data import text_data_load, text_data_split, text_data_loader
 from src.data import boosting_data_load, boosting_data_split
 
+from src.data import rule_base_data_load, rule_base_data_split
+
 from src import FactorizationMachineModel, FieldAwareFactorizationMachineModel
 from src import NeuralCollaborativeFiltering, WideAndDeepModel, DeepCrossNetworkModel
 from src import CNN_FM
 from src import DeepCoNN
+from src import RuleBaseModel
 from src import CatBoostingModel
 from src import XGBModel
 from src import LGBMModel
@@ -36,6 +39,10 @@ def main(args):
         import nltk
         nltk.download('punkt')
         data = text_data_load(args)
+
+    elif args.MODEL == 'CUSTOM_RULE':
+        data = rule_base_data_load(args)
+
     elif args.MODEL == 'CatBoostRegressor':
         data = boosting_data_load(args)
         pass
@@ -45,6 +52,7 @@ def main(args):
     elif args.MODEL == 'LightGBMRegressor':
         data = boosting_data_load(args)
         pass
+
     else:
         pass
 
@@ -65,6 +73,9 @@ def main(args):
     elif args.MODEL=='DeepCoNN':
         data = text_data_split(args, data)
         data = text_data_loader(args, data)
+    
+    elif args.MODEL == 'CUSTOM_RULE':
+        data = rule_base_data_split(args,data)
 
     elif args.MODEL in ('CatBoostRegressor', 'XGBRegressor', 'LightGBMRegressor'):
         data = boosting_data_split(args, data)
@@ -89,8 +100,12 @@ def main(args):
         model = CNN_FM(args, data)
     elif args.MODEL=='DeepCoNN':
         model = DeepCoNN(args, data)
+    elif args.MODEL == 'CUSTOM_RULE':
+        model = RuleBaseModel(args, data)
+        pass
     elif args.MODEL in ('CatBoostRegressor', 'XGBRegressor', 'LightGBMRegressor'):
         model = BoostingModel(args,data)
+
     else:
         pass
     """
@@ -120,15 +135,18 @@ def main(args):
         predicts  = model.predict(data['test_dataloader'])
     elif args.MODEL=='DeepCoNN':
         predicts  = model.predict(data['test_dataloader'])
+    elif args.MODEL=='CUSTOM_RULE':
+        predicts  = model.predict()
     elif args.MODEL in ('CatBoostRegressor', 'XGBRegressor', 'LightGBMRegressor'):
         predicts = model.predict()
+
     else:
         pass
 
     ######################## SAVE PREDICT
     print(f'--------------- SAVE {args.MODEL} PREDICT ---------------')
     submission = pd.read_csv(args.DATA_PATH + 'sample_submission.csv')
-    if args.MODEL in ('FM', 'FFM', 'NCF', 'WDN', 'DCN', 'CNN_FM', 'DeepCoNN','CatBoostRegressor', 'XGBRegressor', "LightGBMRegressor"):
+    if args.MODEL in ('FM', 'FFM', 'NCF', 'WDN', 'DCN', 'CNN_FM', 'DeepCoNN','CUSTOM_RULE','CatBoostRegressor', 'XGBRegressor', "LightGBMRegressor"):
         submission['rating'] = predicts
     else:
         pass
@@ -149,7 +167,7 @@ if __name__ == "__main__":
 
     ############### BASIC OPTION
     arg('--DATA_PATH', type=str, default='data/', help='Data path를 설정할 수 있습니다.')
-    arg('--MODEL', type=str, choices=['FM', 'FFM', 'NCF', 'WDN', 'DCN', 'CNN_FM', 'DeepCoNN', 'CatBoostRegressor', 'XGBRegressor', 'LightGBMRegressor'],
+    arg('--MODEL', type=str, choices=['FM', 'FFM', 'NCF', 'WDN', 'DCN', 'CNN_FM', 'DeepCoNN','CUSTOM_RULE', 'CatBoostRegressor', 'XGBRegressor', 'LightGBMRegressor'],
                                 help='학습 및 예측할 모델을 선택할 수 있습니다.')
     arg('--DATA_SHUFFLE', type=bool, default=True, help='데이터 셔플 여부를 조정할 수 있습니다.')
     arg('--TEST_SIZE', type=float, default=0.2, help='Train/Valid split 비율을 조정할 수 있습니다.')

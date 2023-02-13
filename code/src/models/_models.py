@@ -255,3 +255,17 @@ class _DeepCrossNetworkModel(nn.Module):
         x_out = self.mlp(x_l1)
         p = self.cd_linear(x_out)
         return p.squeeze(1)
+
+
+class _RuleBaseModel():
+    """
+    """
+
+    def __init__():
+        super().__init__()
+
+    def forward(self, x: torch.Tensor):
+        """
+        :param x: Long tensor of size ``(batch_size, num_fields)``
+        """
+        return 
