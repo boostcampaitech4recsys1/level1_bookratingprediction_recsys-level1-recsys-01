@@ -18,6 +18,13 @@ class RMSELoss(torch.nn.Module):
         loss = torch.sqrt(criterion(x, y)+self.eps)
         return loss
 
+# class CatBoosting:
+#     def __init__(self, reduce_sum:bool=True):
+#         super().__init__()
+
+#     def forward(self):
+#         return 0.5 
+
 
 class FactorizationMachine(nn.Module):
 

@@ -26,7 +26,8 @@ def main(args):
         pass
     en.output_frame['rating'] = result
     output = en.output_frame.copy()
-    files_title = '-'.join(file_list)
+    # files_title = '-'.join(file_list)
+    files_title = file_list[0] + '_and' + str(len(file_list) - 1) + 'otherFiles'
 
     output.to_csv(f'{args.RESULT_PATH}{files_title}-{strategy_title}.csv',index=False)
 

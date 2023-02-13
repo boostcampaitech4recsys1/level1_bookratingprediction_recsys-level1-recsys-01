@@ -11,5 +11,9 @@ from .models.dl_models import NeuralCollaborativeFiltering, WideAndDeepModel, De
 from .models.image_models import CNN_FM
 from .models.text_models import DeepCoNN
 from .models.rule_base_models import RuleBaseModel
+from .models.boosting_models import CatBoostingModel,BoostingModel
+from .models.boosting_models import XGBModel
+from .models.boosting_models import LGBMModel
+from .models.utils import KfoldWrapper
 
 from .ensembles.ensembles import Ensemble
