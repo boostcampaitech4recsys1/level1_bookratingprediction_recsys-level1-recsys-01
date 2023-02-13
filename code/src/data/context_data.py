@@ -3,6 +3,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 import torch
 import torch.nn as nn
+import re
 from torch.utils.data import TensorDataset, DataLoader, Dataset
 
 import os
@@ -12,6 +13,124 @@ print(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 
 from .preprocessing import *
 from sklearn.preprocessing import OrdinalEncoder
+
+def age_map(x: int) -> int:
+    x = int(x)
+    if x < 20:
+        return 1
+    elif x >= 20 and x < 30:
+        return 2
+    elif x >= 30 and x < 40:
+        return 3
+    elif x >= 40 and x < 50:
+        return 4
+    elif x >= 50 and x < 60:
+        return 5
+    else:
+        return 6
+
+def publish_year_map(x):
+    try:
+        x = int(x)
+        if x < 1900:
+            return 0
+        else:
+            return x // 10 - 190  # 1900: 0, 1990: 9, 2000: 10
+    except:
+        return x
+
+def country_map(x):
+    if x in ['','na']:
+        return 'usa'
+    
+    if x in ['unitedstatesofamerica','losestadosunidosdenorteamerica','us','unitedstate','unitedstaes','unitedstatesofamerica','unitedsates','unitedstates']:
+        return 'usa'
+    elif x in ['england','uk','unitedkingdom','unitedkindgonm']:
+        return 'unitedkingdom'
+    elif x in ['hongkong']:
+        return 'china'
+    elif x in ['deutschland']:
+        return 'germany'
+    elif x in ['catalunya','espaa']:
+        return 'spain'
+    else :
+        return x
+
+# def sep_country(x):
+#     if x in ['finland','portugal','germany','austria','italy','france','netherlands','poland','spain','singapore','switzerland','yugoslavia','sweden','slovakia','norway','macedonia','denmark','russia','andorra','czechrepublic','bulgaria','slovenia','luxembourg','iceland','cyprus','albania','ukraine','malta','romania','greece','ireland','belgium','unitedkingdom','argentina','hungary','croatia','lithuania']:
+#         return 'Europe'
+#     elif x in ['iran','turkey','qatar','kuwait','israel','saudiarabia','unitedarabemirates']:
+#         return 'MiddleEast'
+#     elif x in ['malaysia','taiwan','singapore','philippines','japan','china','indonesia','nepal','southkorea','pakistan','srilanka','india','turkmenistan','laos','thailand']:
+#         return 'Asia'
+#     elif x in ['southafrica', 'kenya','mauritius','madagascar','egypt','zambia','zimbabwe','algeria','mozambique','guinea','canaryislands','nigeria']:
+#         return 'Africa'
+#     elif x in ['newzealand','australia','palau']:
+#         return 'Oceania'
+#     elif x in ['canada','usa','bermuda','puertorico']:
+#         return 'NorthAmerica'
+#     elif x in ['brazil', 'costarica', 'mexico', 'peru','dominicanrepublic','guatemala','venezuela','chile','honduras','trinidadandtobago','belize','jamaica','bahamas','caymanislands','saintlucia','barbados']:
+#         return 'SouthAmerica'
+#     elif x in ['quit','universe','tdzimi','stthomasi','faraway','everywhereandanywhere','ontario','k1c7b1','naontheroad','sthelena']:
+#         return 'Remove_Point'
+#     else:
+#         return x
+
+def process_context_data(users, books, ratings1, ratings2, b_preprocess_category):
+    # ===================== 1. users preprocessing =====================
+    # ===================== 1-1. location
+    #users['location_city'] = users['location'].apply(lambda x: x.split(',')[0])
+    #users['location_state'] = users['location'].apply(lambda x: x.split(',')[1])
+    # users['location_country'] = users['location'].apply(lambda x: x.split(',')[2])
+    users['location_country'] = users['location'].apply(lambda x: x.split(',')[-1])
+    # 공백 및 특수문자 제거
+    users['location_country'] = users['location_country'].apply(lambda x: re.sub('[^0-9a-zA-Z]','',x).strip())
+    users = users.drop(['location'], axis=1)
+
+    # gu: location_country 결측치 처리
+    users['location_country'] = users['location_country'].fillna('usa')
+    users['location_country'] = users['location_country'].apply(country_map)
+
+    # 6대주 + 중동
+
+    # users['location_country'] = users['location_country'].apply(sep_country)
+
+    # 해당 나라의 유저가 5명 이하일 경우 해당 나라 제거
+    country_unique = users['location_country'].unique().tolist()
+    for country in country_unique:
+        if users[users['location_country']==country].shape[0]< 5:
+            users.loc[users['location_country']==country,"location_country"] = 'Remove_Point'
+    users.drop(users[users['location_country']=='Remove_Point'].index,inplace=True)
+
+
+    # ===================== 2. books preprocessing =====================
+    # ===================== 2-1. publisher
+    publisher_dict=(books['publisher'].value_counts()).to_dict()
+    publisher_count_df= pd.DataFrame(list(publisher_dict.items()),columns = ['publisher','count'])
+
+    publisher_count_df = publisher_count_df.sort_values(by=['count'], ascending = False)
+    modify_list = publisher_count_df[publisher_count_df['count']>1].publisher.values
+
+    for publisher in modify_list:
+        try:
+            number = books[books['publisher']==publisher]['isbn'].apply(lambda x: x[:4]).value_counts().index[0]
+            right_publisher = books[books['isbn'].apply(lambda x: x[:4])==number]['publisher'].value_counts().index[0]
+            books.loc[books[books['isbn'].apply(lambda x: x[:4])==number].index,'publisher'] = right_publisher
+        except: 
+            pass
+
+    # gu: publisher 결측치 처리
+    # books['publisher'] = books['publisher'].fillna('others') # 퍼블리셔 결측치 없음
+
+
+    # ===================== 2-2. language
+    # # Apply ordinal encoding on language_code to convert it into numerical column
+    # enc = OrdinalEncoder()
+    # enc.fit(books[['language']])
+    # books[['language']] = enc.fit_transform(books[['language']])
+
+    # # hhj category language 결측치 제거 
+    # train_df = train_df[~(train_df['category'].isna() & train_df['language'].isna())]
 
 def process_context_data(users, books, ratings1, ratings2, b_preprocess_category):
 
@@ -38,10 +157,15 @@ def process_context_data(users, books, ratings1, ratings2, b_preprocess_category
     # ===================== 2-2. language
     # # hhj category language 결측치 제거 
     # train_df = train_df[~(train_df['category'].isna() & train_df['language'].isna())]
+
     # gu: language 결측치처리
     books['language'] = books['language'].fillna('en')
 
     # ===================== 2-3. author
+ 
+    # gu: book_author 전처리
+    books['book_author'] = books['book_author'].str.replace(r'[^0-9a-zA-Z:,]', '')
+    
     # [주의] train, test data 분리 후 2명 이상 평가한 author count 를 추가한다.
 
     # ===================== 2-4. category
@@ -72,11 +196,11 @@ def process_context_data(users, books, ratings1, ratings2, b_preprocess_category
     loc_state2idx = {v:k for k,v in enumerate(context_df['location_state'].unique())}
     loc_country2idx = {v:k for k,v in enumerate(context_df['location_country'].unique())}
 
-    train_df['location_city'] = train_df['location_city'].map(loc_city2idx)
-    train_df['location_state'] = train_df['location_state'].map(loc_state2idx)
+    #train_df['location_city'] = train_df['location_city'].map(loc_city2idx)
+    #train_df['location_state'] = train_df['location_state'].map(loc_state2idx)
     train_df['location_country'] = train_df['location_country'].map(loc_country2idx)
-    test_df['location_city'] = test_df['location_city'].map(loc_city2idx)
-    test_df['location_state'] = test_df['location_state'].map(loc_state2idx)
+    #test_df['location_city'] = test_df['location_city'].map(loc_city2idx)
+    #test_df['location_state'] = test_df['location_state'].map(loc_state2idx)
     test_df['location_country'] = test_df['location_country'].map(loc_country2idx)
 
     # ===================== 3-3. book author/publisher preprocessing after merge
@@ -96,7 +220,6 @@ def process_context_data(users, books, ratings1, ratings2, b_preprocess_category
     train_df['age_pub_gap'] = train_df['year_of_publication'] - train_df['age'] + 10  # 음수 제거용
     test_df['age_pub_gap'] = test_df['year_of_publication'] - test_df['age'] + 10  # 음수 제거용
 
-
     # ===================== 3-4. books columns 인덱싱처리
     publisher2idx = {v:k for k,v in enumerate(context_df['publisher'].unique())}
     language2idx = {v:k for k,v in enumerate(context_df['language'].unique())}
@@ -107,6 +230,7 @@ def process_context_data(users, books, ratings1, ratings2, b_preprocess_category
     if( False == b_preprocess_category ):
         train_df['category'] = train_df['category'].map(category2idx)
         test_df['category'] = test_df['category'].map(category2idx)
+
     # else:
     #     train_df = preprocess_category(train_df)
     #     train_df = map_category_with_ranking(train_df)
@@ -137,9 +261,13 @@ def process_context_data(users, books, ratings1, ratings2, b_preprocess_category
     # # print(ratings.head())
     # # print(ratings1.head())
 
+    # gu: year of publication 추가
+    train_df['year_of_publication'] = train_df['year_of_publication'].apply(publish_year_map)
+    test_df['year_of_publication'] = test_df['year_of_publication'].apply(publish_year_map)
+
     idx = {
-        "loc_city2idx":loc_city2idx,
-        "loc_state2idx":loc_state2idx,
+        #"loc_city2idx":loc_city2idx,
+        #"loc_state2idx":loc_state2idx,
         "loc_country2idx":loc_country2idx,
         "category2idx":category2idx,
         "publisher2idx":publisher2idx,
