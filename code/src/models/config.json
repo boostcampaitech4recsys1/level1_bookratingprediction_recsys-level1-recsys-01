@@ -1,19 +1,11 @@
 
 {
     "CatBoostRegressor" : {
-            "learning_rate"     : 0.048, 
-            "depth"             : 15,
-            "l2_leaf_reg"       : 1.5,
-            "min_child_samples" : 1,
+            "iterations" : 10000,
+            "learning_rate"     : 0.130372, 
             "eval_metric"       : "RMSE",
-            "bootstrap_type"    : "Bernoulli",
-            "iterations"        : 10000,
-            "grow_policy"       : "Depthwise",
-            "use_best_model"    : true,
-            "od_type"           : "Iter",
-            "od_wait"           : 20,
-            "random_state"      : 42 
-            
+            "early_stopping_rounds":150,
+            "verbose" : 100         
     },
     "LightGBMRegressor" : {
         "n_jobs"           : 4,
@@ -33,7 +25,7 @@
         "is_training_metric" : false
     },
     "XGBRegressor":{
-        
+        "eval_metric":"rmse"
     }
 
 }
