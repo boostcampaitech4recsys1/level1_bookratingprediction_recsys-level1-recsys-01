@@ -1,19 +1,30 @@
 import time
 import argparse
+
 import pandas as pd
 
 from src import seed_everything
+
+from src.data.postprocessing import get_rating_average
 
 from src.data import context_data_load, context_data_split, context_data_loader
 from src.data import dl_data_load, dl_data_split, dl_data_loader
 from src.data import image_data_load, image_data_split, image_data_loader
 from src.data import text_data_load, text_data_split, text_data_loader
+from src.data import boosting_data_load, boosting_data_split
+
+from src.data import rule_base_data_load, rule_base_data_split
 
 from src import FactorizationMachineModel, FieldAwareFactorizationMachineModel
 from src import NeuralCollaborativeFiltering, WideAndDeepModel, DeepCrossNetworkModel
 from src import CNN_FM
 from src import DeepCoNN
-
+from src import RuleBaseModel
+from src import CatBoostingModel
+from src import XGBModel
+from src import LGBMModel
+from src import BoostingModel
+from src import KfoldWrapper
 
 def main(args):
     seed_everything(args.SEED)
@@ -30,6 +41,20 @@ def main(args):
         import nltk
         nltk.download('punkt')
         data = text_data_load(args)
+
+    elif args.MODEL == 'CUSTOM_RULE':
+        data = rule_base_data_load(args)
+
+    elif args.MODEL == 'CatBoostRegressor':
+        data = boosting_data_load(args)
+        pass
+    elif args.MODEL == 'XGBRegressor':
+        data = boosting_data_load(args)
+        pass
+    elif args.MODEL == 'LightGBMRegressor':
+        data = boosting_data_load(args)
+        pass
+
     else:
         pass
 
@@ -50,6 +75,14 @@ def main(args):
     elif args.MODEL=='DeepCoNN':
         data = text_data_split(args, data)
         data = text_data_loader(args, data)
+    
+    elif args.MODEL == 'CUSTOM_RULE':
+        data = rule_base_data_split(args,data)
+
+    elif args.MODEL in ('CatBoostRegressor', 'XGBRegressor', 'LightGBMRegressor'):
+        data = boosting_data_split(args, data)
+        pass
+
     else:
         pass
 
@@ -69,8 +102,28 @@ def main(args):
         model = CNN_FM(args, data)
     elif args.MODEL=='DeepCoNN':
         model = DeepCoNN(args, data)
+    elif args.MODEL == 'CUSTOM_RULE':
+        model = RuleBaseModel(args, data)
+        pass
+    elif args.MODEL in ('CatBoostRegressor', 'XGBRegressor', 'LightGBMRegressor'):
+        model = BoostingModel(args,data)
+
     else:
         pass
+    """
+    elif args.MODEL=='CatBoostRegressor':
+        # model = CatBoostingModel(args, data)
+        model = BoostingModel(args,data)
+    elif args.MODEL=='XGBRegressor':
+        model = XGBModel(args, data)
+    elif args.MODEL=='LightGBM':
+        model = LGBMModel(args, data)
+    """
+
+
+    print(f'--------------- K_FOLD : {args.K_FOLDS} USE ---------------')
+    if args.K_FOLDS > 0 :
+        model = KfoldWrapper(args, model, args.K_FOLDS)
 
     ######################## TRAIN
     print(f'--------------- {args.MODEL} TRAINING ---------------')
@@ -84,16 +137,25 @@ def main(args):
         predicts  = model.predict(data['test_dataloader'])
     elif args.MODEL=='DeepCoNN':
         predicts  = model.predict(data['test_dataloader'])
+    elif args.MODEL=='CUSTOM_RULE':
+        predicts  = model.predict()
+    elif args.MODEL in ('CatBoostRegressor', 'XGBRegressor', 'LightGBMRegressor'):
+        predicts = model.predict()
+
     else:
         pass
 
-    ######################## SAVE PREDICT
+    ######################## POSTPROCESSING & SAVE PREDICT
     print(f'--------------- SAVE {args.MODEL} PREDICT ---------------')
     submission = pd.read_csv(args.DATA_PATH + 'sample_submission.csv')
-    if args.MODEL in ('FM', 'FFM', 'NCF', 'WDN', 'DCN', 'CNN_FM', 'DeepCoNN'):
+    if args.MODEL in ('FM', 'FFM', 'NCF', 'WDN', 'DCN', 'CNN_FM', 'DeepCoNN','CUSTOM_RULE','CatBoostRegressor', 'XGBRegressor', "LightGBMRegressor"):
         submission['rating'] = predicts
+        
+        #POSTPROCESSING
+        submission = get_rating_average(submission,3)
     else:
         pass
+    
 
     now = time.localtime()
     now_date = time.strftime('%Y%m%d', now)
@@ -111,7 +173,7 @@ if __name__ == "__main__":
 
     ############### BASIC OPTION
     arg('--DATA_PATH', type=str, default='data/', help='Data path를 설정할 수 있습니다.')
-    arg('--MODEL', type=str, choices=['FM', 'FFM', 'NCF', 'WDN', 'DCN', 'CNN_FM', 'DeepCoNN'],
+    arg('--MODEL', type=str, choices=['FM', 'FFM', 'NCF', 'WDN', 'DCN', 'CNN_FM', 'DeepCoNN','CUSTOM_RULE', 'CatBoostRegressor', 'XGBRegressor', 'LightGBMRegressor'],
                                 help='학습 및 예측할 모델을 선택할 수 있습니다.')
     arg('--DATA_SHUFFLE', type=bool, default=True, help='데이터 셔플 여부를 조정할 수 있습니다.')
     arg('--TEST_SIZE', type=float, default=0.2, help='Train/Valid split 비율을 조정할 수 있습니다.')
@@ -161,5 +223,7 @@ if __name__ == "__main__":
     arg('--DEEPCONN_WORD_DIM', type=int, default=768, help='DEEP_CONN에서 1D conv의 입력 크기를 조정할 수 있습니다.')
     arg('--DEEPCONN_OUT_DIM', type=int, default=32, help='DEEP_CONN에서 1D conv의 출력 크기를 조정할 수 있습니다.')
 
+    arg('--DO_OPTUNA', type=bool, default = False, help ='Optuna 실행 설정')
+    arg('--K_FOLDS', type=int, default = 0, help ='군집 개수 설정')
     args = parser.parse_args()
     main(args)
