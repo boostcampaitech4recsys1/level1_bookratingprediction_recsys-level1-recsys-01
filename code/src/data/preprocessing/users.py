@@ -42,6 +42,32 @@ def country_map(x):
     else :
         return x
 
+def author_cnt_map(x: int) -> int:
+
+    x = int(x)
+    if x <= 5:
+        return 0
+    elif x <= 10:
+        return 1
+    elif x < 100:
+        return 2
+    else:
+        return 3
+
+def publisher_cnt_map(x: int) -> int:
+
+    x = int(x)
+    if x <= 5:
+        return 0
+    elif x <= 10:
+        return 1
+    elif x < 100:
+        return 2
+    elif x < 300:
+        return 3
+    else:
+        return 4
+
 def remove_outlier_by_age( target_data : pd.DataFrame, target_age:int)->pd.DataFrame:
     
     if 'age' not in target_data.columns:
@@ -155,12 +181,15 @@ def process_age( target_data : pd.DataFrame,  how : object = 'mean') -> pd.DataF
 
     return target_data
 
-# gu 작가별 단골 추가
-def add_regular_custom_by_author( target_data:pd.DataFrame)->pd.DataFrame:  
+# gu 단골 추가
+def add_regular_custom( target_data:pd.DataFrame, col:str)->pd.DataFrame:  
 
-    common = target_data.groupby(['book_author', 'user_id'])[['rating']].count()
-    author_common = common[common['rating']>2].groupby('book_author').count().sort_values('rating', ascending=False).rename(columns={'rating': 'author_common_cnt'}).reset_index()
-    target_data = target_data.merge(author_common, on='book_author', how='left')
-    target_data['author_common_cnt'].fillna(0, inplace=True)
-
+    common = target_data.groupby([col, 'user_id'])[['rating']].count()
+    common_count = common[common['rating']>2].groupby(col).count().sort_values('rating', ascending=False).rename(columns={'rating': col + '_common_cnt'}).reset_index()
+    target_data = target_data.merge(common_count, on=col, how='left')
+    target_data[col + '_common_cnt'].fillna(0, inplace=True)
+    if col == 'book_author':
+        target_data[col + '_common_cnt'] = get_apply_map_series(target_data,col + '_common_cnt',author_cnt_map)
+    elif col == 'publisher':
+        target_data[col + '_common_cnt'] = get_apply_map_series(target_data,col + '_common_cnt',publisher_cnt_map)
     return target_data

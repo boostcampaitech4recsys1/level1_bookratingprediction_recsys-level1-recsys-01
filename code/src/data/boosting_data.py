@@ -1,3 +1,4 @@
+from turtle import shape, shearfactor
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split,StratifiedKFold
@@ -94,6 +95,15 @@ def process_boosting_data(users, books, ratings1, ratings2):
     # year of publication 추가
     books = process_year_of_publication(books)
 
+    # 나이 범주화 및 결측치 채우기
+    users = process_age( users , 'mean' )
+
+    # category 전처리 
+    books = preprocess_category(books)
+
+    # 시리즈 추가(author-publisher-category): 카테고리 전처리 후에 진행
+    books = process_series(books)
+
     # book_rating_df = ratings1.merge(books[['isbn', 'book_author', 'book_title']], on='isbn', how='left')
     # book_rating_info = book_rating_df.groupby(["book_author","book_title"])['rating'].agg(['count','mean'])
     # book_rating_info.columns = ['rated_count','rating_mean']
@@ -135,10 +145,9 @@ def process_boosting_data(users, books, ratings1, ratings2):
 
     # 인덱싱 처리된 데이터 조인
     ratings = pd.concat([ratings1, ratings2]).reset_index(drop=True)
-    whole_df = ratings.merge(users, on='user_id', how='left').merge(books[['concat_txt','isbn', 'category', 'publisher', 'language', 'book_author', 'year_of_publication']], on='isbn', how='left')
-    train_df = ratings1.merge(users, on='user_id', how='left').merge(books[['concat_txt','isbn', 'category', 'publisher', 'language', 'book_author', 'year_of_publication']], on='isbn', how='left')
-    test_df = ratings2.merge(users, on='user_id', how='left').merge(books[['concat_txt','isbn', 'category', 'publisher', 'language', 'book_author', 'year_of_publication']], on='isbn', how='left')
-
+    whole_df = ratings.merge(users, on='user_id', how='left').merge(books[['concat_txt','isbn', 'category', 'publisher', 'language', 'book_author', 'year_of_publication', 'series']], on='isbn', how='left')
+    train_df = ratings1.merge(users, on='user_id', how='left').merge(books[['concat_txt','isbn', 'category', 'publisher', 'language', 'book_author', 'year_of_publication', 'series']], on='isbn', how='left')
+    test_df = ratings2.merge(users, on='user_id', how='left').merge(books[['concat_txt','isbn', 'category', 'publisher', 'language', 'book_author', 'year_of_publication', 'series']], on='isbn', how='left')
 
     # 인덱싱 처리
     """
@@ -153,17 +162,25 @@ def process_boosting_data(users, books, ratings1, ratings2):
     train_df['location_city'] = train_df['location_city'].map(loc_city2idx)
     test_df['location_city'] = test_df['location_city'].map(loc_city2idx)
     """
-    # category 전처리 
-    train_df = preprocess_category(train_df)
-    test_df = preprocess_category(test_df)
+    # # category 전처리 
+    # train_df = preprocess_category(train_df)
+    # test_df = preprocess_category(test_df)
 
     # 작가별 단골 
-    train_df = add_regular_custom_by_author(train_df)
-    test_df = add_regular_custom_by_author(test_df)
+    train_df = add_regular_custom(train_df, 'book_author')
+    test_df = add_regular_custom(test_df, 'book_author')
 
-    # 나이 범주화 및 결측치 채우기
-    train_df = process_age( train_df , 'mean' )
-    test_df = process_age( test_df , 'mean' )
+    # 출판사별 단골 
+    train_df = add_regular_custom(train_df, 'publisher')
+    test_df = add_regular_custom(test_df, 'publisher')
+
+    # # 나이 범주화 및 결측치 채우기 >> merge 전으로 이동
+    # train_df = process_age( train_df , 'mean' )
+    # test_df = process_age( test_df , 'mean' )
+
+    # age and year of publication 갭 추가
+    train_df['age_pub_gap'] = train_df['year_of_publication'] - train_df['age'] + 10  # 음수 제거용
+    test_df['age_pub_gap'] = test_df['year_of_publication'] - test_df['age'] + 10  # 음수 제거용
 
     ############### 임시 결측치 처리 코드 ######################
     train_df['language'] = train_df['language'].fillna('en')
@@ -224,8 +241,8 @@ def after_preprocessing(args, train, test, whole_df):
         loc_state2idx = {v:k for k,v in enumerate(whole_df['location_state'].unique())}
         loc_city2idx = {v:k for k,v in enumerate(whole_df['location_city'].unique())}
         loc2idx = {v:k for k,v in enumerate(whole_df['location'].unique())}
+        series2idx = {v:k for k,v in enumerate(whole_df['series'].unique())}
         title2idx = {v:k for k,v in enumerate(whole_df['book_title'].unique())}
-
     
         train['location_country'] = train['location_country'].map(loc_country2idx)
         test['location_country'] = test['location_country'].map(loc_country2idx)
@@ -235,9 +252,11 @@ def after_preprocessing(args, train, test, whole_df):
         test['location_city'] = test['location_city'].map(loc_city2idx)
         train['location'] = train['location'].map(loc2idx)
         test['location'] = test['location'].map(loc2idx)
+        train['series'] = train['series'].map(series2idx)
+        test['series'] = test['series'].map(series2idx)
         train['book_title'] = train['book_title'].map(loc2idx)
         test['book_title'] = test['book_title'].map(loc2idx)
-
+        
         train['publisher'] = get_cnt_series_by_column(train,'publisher','isbn')
         test['publisher'] = get_cnt_series_by_column(test,'publisher','isbn')
         train['book_author'] = get_cnt_series_by_column(train,'book_author','isbn')
@@ -293,6 +312,8 @@ def boosting_data_load(args):
 
     whole,boosting_train, boosting_test = process_boosting_data(users, books, train, test)
     cur_cat_features , train, test = after_preprocessing(args,boosting_train,boosting_test,whole)
+    print(boosting_train.head())
+    print(boosting_train.columns)
 
     data = {
             'train':train,
